@@ -549,7 +549,28 @@ void setVideoMode(char Region, int title)
     if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
-char *read_name(u64 titleid)
+s32 check_ascii(char *s) 
+{
+    int i = 0;
+    s32 ret = 0;
+    for(i=0; i < sizeof(s); i++)
+    {
+        if(s[i] < 0x20)
+        { 
+            ret = -1;
+        break;
+      }  
+        if(s[i] > 0x7E) 
+      {
+          ret = -2;
+        break;
+      }  
+  }  
+  
+  return ret;
+}
+
+char *read_name2(u64 titleid)
 {
 	s32 cfd;
     s32 ret;
@@ -563,75 +584,6 @@ char *read_name(u64 titleid)
 	char *out;
 	u8 *buffer = allocate_memory(800);
 	
-	
-   
-	// Try to read from banner.bin first
-	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-  
-	cfd = ISFS_Open(path, ISFS_OPEN_READ);
-	if (cfd < 0)
-	{
-		//printf("ISFS_OPEN for %s failed %d\n", path, cfd);
-	} else
-	{
-	    ret = ISFS_Read(cfd, buffer, 800);
-	    if (ret < 0)
-	    {
-			printf("ISFS_Read for %s failed %d\n", path, ret);
-		    ISFS_Close(cfd);
-			return NULL;
-		}
-
-		ISFS_Close(cfd);	
-
-		length = 0;
-		i = 0;
-		while(buffer[0x21 + i*2] != 0x00)
-		{
-			length++;
-			i++;
-		}
-		out = allocate_memory(length+10);
-		if(out == NULL)
-		{
-			printf("Allocating memory for buffer failed\n");
-			free(buffer);
-			return NULL;
-		}
-		memset(out, 0x00, length+10);
-		
-		i = 0;
-		while (buffer[0x21 + i*2] != 0x00)
-		{
-			out[i] = (char) buffer[0x21 + i*2];
-			i++;
-		}
-		
-		free(buffer);
-		u32 low;
-		low = TITLE_LOWER(titleid);
-		switch(low & 0xFF)
-		{
-		    case 'E':
-			    memcpy(out+i, " (NTSC-U)", 9); break;
-			case 'P':
-			    memcpy(out+i, " (PAL)", 6); break;
-			case 'J':
-			    memcpy(out+i, " (NTSC-J)", 9); break;	
-			case 'L':
-			    memcpy(out+i, " (PAL)", 6); break;	
-            case 'N':
-			    memcpy(out+i, " (NTSC-U)", 9); break;	
-            case 'M':
-			    memcpy(out+i, " (PAL)", 6); break;
-            case 'K':
-			    memcpy(out+i, " (NTSC)", 7); break;
-            default:
-                break;
-        }	
-
-        return out;
-	}
    
 	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	
@@ -725,6 +677,102 @@ char *read_name(u64 titleid)
 			    
         }
     }
+	
+	free(buffer);
+	free(list);
+	
+	return NULL;
+}
+
+char *read_name(u64 titleid)
+{
+	s32 cfd;
+    s32 ret;
+	dirent_t *list = NULL;
+    char path[ISFS_MAXPATH];
+	int i;
+    int length;
+	char *out;
+	u8 *buffer = allocate_memory(800);
+	
+	
+   
+	// Try to read from banner.bin first
+	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+  
+	cfd = ISFS_Open(path, ISFS_OPEN_READ);
+	if (cfd < 0)
+	{
+		//printf("ISFS_OPEN for %s failed %d\n", path, cfd);
+	} else
+	{
+	    ret = ISFS_Read(cfd, buffer, 800);
+	    if (ret < 0)
+	    {
+			printf("ISFS_Read for %s failed %d\n", path, ret);
+		    ISFS_Close(cfd);
+			return NULL;
+		}
+
+		ISFS_Close(cfd);	
+
+		length = 0;
+		i = 0;
+		while(buffer[0x21 + i*2] != 0x00)
+		{
+			length++;
+			i++;
+		}
+		out = allocate_memory(length+10);
+		if(out == NULL)
+		{
+			printf("Allocating memory for buffer failed\n");
+			free(buffer);
+			return NULL;
+		}
+		memset(out, 0x00, length+10);
+		
+		i = 0;
+		while (buffer[0x21 + i*2] != 0x00)
+		{
+			out[i] = (char) buffer[0x21 + i*2];
+			i++;
+		}
+		
+		free(buffer);
+		u32 low;
+		low = TITLE_LOWER(titleid);
+		switch(low & 0xFF)
+		{
+		    case 'E':
+			    memcpy(out+i, " (NTSC-U)", 9); break;
+			case 'P':
+			    memcpy(out+i, " (PAL)", 6); break;
+			case 'J':
+			    memcpy(out+i, " (NTSC-J)", 9); break;	
+			case 'L':
+			    memcpy(out+i, " (PAL)", 6); break;	
+            case 'N':
+			    memcpy(out+i, " (NTSC-U)", 9); break;	
+            case 'M':
+			    memcpy(out+i, " (PAL)", 6); break;
+            case 'K':
+			    memcpy(out+i, " (NTSC)", 7); break;
+            default:
+                break;
+        }	
+        ret = check_ascii(out);
+		if(ret == 0)
+        {	
+        return out;
+		} else
+		{
+		out = read_name2(titleid);
+		return out;
+		}
+	}
+   
+
 	
 	free(buffer);
 	free(list);
