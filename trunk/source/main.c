@@ -562,6 +562,8 @@ char *read_name(u64 titleid)
     u32 cnt = 0;
 	char *out;
 	u8 *buffer = allocate_memory(800);
+	
+	
    
 	// Try to read from banner.bin first
 	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
@@ -589,14 +591,14 @@ char *read_name(u64 titleid)
 			length++;
 			i++;
 		}
-		out = allocate_memory(length+1);
+		out = allocate_memory(length+10);
 		if(out == NULL)
 		{
 			printf("Allocating memory for buffer failed\n");
 			free(buffer);
 			return NULL;
 		}
-		memset(out, 0x00, length+1);
+		memset(out, 0x00, length+10);
 		
 		i = 0;
 		while (buffer[0x21 + i*2] != 0x00)
@@ -606,7 +608,29 @@ char *read_name(u64 titleid)
 		}
 		
 		free(buffer);
-		return out;
+		u32 low;
+		low = TITLE_LOWER(titleid);
+		switch(low & 0xFF)
+		{
+		    case 'E':
+			    memcpy(out+i, " (NTSC-U)", 9); break;
+			case 'P':
+			    memcpy(out+i, " (PAL)", 6); break;
+			case 'J':
+			    memcpy(out+i, " (NTSC-J)", 9); break;	
+			case 'L':
+			    memcpy(out+i, " (PAL)", 6); break;	
+            case 'N':
+			    memcpy(out+i, " (NTSC-U)", 9); break;	
+            case 'M':
+			    memcpy(out+i, " (PAL)", 6); break;
+            case 'K':
+			    memcpy(out+i, " (NTSC)", 7); break;
+            default:
+                break;
+        }	
+
+        return out;
 	}
    
 	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
@@ -654,14 +678,14 @@ char *read_name(u64 titleid)
 					i++;
 				}
 				
-				out = allocate_memory(length+1);
+				out = allocate_memory(length+10);
 				if(out == NULL)
 				{
 					printf("Allocating memory for buffer failed\n");
 					free(buffer);
 					return NULL;
 				}
-				memset(out, 0x00, length+1);
+				memset(out, 0x00, length+10);
 				
 				i = 0;
 				while(buffer[0xF1 + i*2] != 0x00)
@@ -670,8 +694,32 @@ char *read_name(u64 titleid)
 					i++;
 				}
 				
+				
 				free(buffer);
 				free(list);
+				
+				u32 low;
+		        low = TITLE_LOWER(titleid);
+		        switch(low & 0xFF)
+		        {
+		            case 'E':
+			            memcpy(out+i, " (NTSC-U)", 9); break;
+			        case 'P':
+			            memcpy(out+i, " (PAL)", 6); break;
+			        case 'J':
+			            memcpy(out+i, " (NTSC-J)", 9); break;	
+			        case 'L':
+			           memcpy(out+i, " (PAL)", 6); break;	
+                   case 'N':
+			            memcpy(out+i, " (NTSC-U)", 9); break;	
+                   case 'M':
+			            memcpy(out+i, " (PAL)", 6); break;
+                    case 'K':
+			            memcpy(out+i, " (NTSC)", 7); break;
+                    default:
+                        break;
+                }	
+
 				return out;
 			}
 			    
