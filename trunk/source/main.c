@@ -577,7 +577,7 @@ s32 check_ascii(char *s)
   return ret;
 }
 
-char *read_name2(u64 titleid)
+char *read_name_from_banner_app(u64 titleid)
 {
 	s32 cfd;
     s32 ret;
@@ -590,8 +590,7 @@ char *read_name2(u64 titleid)
     u32 cnt = 0;
 	char *out;
 	u8 *buffer = allocate_memory(800);
-	
-   
+	   
 	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	
     ret = getdir(contentpath, &list, &num);
@@ -651,34 +650,11 @@ char *read_name2(u64 titleid)
 				{
 					out[i] = (char) buffer[0xF1 + i*2];
 					i++;
-				}
-				
+				}				
 				
 				free(buffer);
 				free(list);
 				
-				u32 low;
-		        low = TITLE_LOWER(titleid);
-		        switch(low & 0xFF)
-		        {
-		            case 'E':
-			            memcpy(out+i, " (NTSC-U)", 9); break;
-			        case 'P':
-			            memcpy(out+i, " (PAL)", 6); break;
-			        case 'J':
-			            memcpy(out+i, " (NTSC-J)", 9); break;	
-			        case 'L':
-			           memcpy(out+i, " (PAL)", 6); break;	
-                   case 'N':
-			            memcpy(out+i, " (NTSC-U)", 9); break;	
-                   case 'M':
-			            memcpy(out+i, " (PAL)", 6); break;
-                    case 'K':
-			            memcpy(out+i, " (NTSC)", 7); break;
-                    default:
-                        break;
-                }	
-
 				return out;
 			}
 			    
@@ -691,18 +667,15 @@ char *read_name2(u64 titleid)
 	return NULL;
 }
 
-char *read_name(u64 titleid)
+char *read_name_from_banner_bin(u64 titleid)
 {
 	s32 cfd;
     s32 ret;
-	dirent_t *list = NULL;
     char path[ISFS_MAXPATH];
 	int i;
     int length;
 	char *out;
-	u8 *buffer = allocate_memory(800);
-	
-	
+	u8 *buffer = allocate_memory(160);
    
 	// Try to read from banner.bin first
 	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
@@ -711,13 +684,15 @@ char *read_name(u64 titleid)
 	if (cfd < 0)
 	{
 		//printf("ISFS_OPEN for %s failed %d\n", path, cfd);
+		return NULL;
 	} else
 	{
-	    ret = ISFS_Read(cfd, buffer, 800);
+	    ret = ISFS_Read(cfd, buffer, 160);
 	    if (ret < 0)
 	    {
 			printf("ISFS_Read for %s failed %d\n", path, ret);
 		    ISFS_Close(cfd);
+			free(buffer);
 			return NULL;
 		}
 
@@ -747,50 +722,59 @@ char *read_name(u64 titleid)
 		}
 		
 		free(buffer);
+
+		return out;		
+	}
+ 	
+	free(buffer);
+	
+	return NULL;
+}
+
+char *get_name(u64 titleid)
+{
+	char *temp;
+	temp = read_name_from_banner_bin(titleid);
+	if (temp == NULL || check_ascii(temp) != 0)
+	{
+		temp = read_name_from_banner_app(titleid);
+	}
+	
+	if (temp != NULL)
+	{
 		u32 low;
 		low = TITLE_LOWER(titleid);
 		switch(low & 0xFF)
 		{
-		    case 'E':
-			    memcpy(out+i, " (NTSC-U)", 9); break;
+			case 'E':
+				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
+				break;
 			case 'P':
-			    memcpy(out+i, " (PAL)", 6); break;
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;
 			case 'J':
-			    memcpy(out+i, " (NTSC-J)", 9); break;	
+				memcpy(temp+strlen(temp), " (NTSC-J)", 9);
+				break;	
 			case 'L':
-			    memcpy(out+i, " (PAL)", 6); break;	
-            case 'N':
-			    memcpy(out+i, " (NTSC-U)", 9); break;	
-            case 'M':
-			    memcpy(out+i, " (PAL)", 6); break;
-            case 'K':
-			    memcpy(out+i, " (NTSC)", 7); break;
-            default:
-                break;
-        }	
-        ret = check_ascii(out);
-		if(ret == 0)
-        {	
-        return out;
-		} else
-		{
-		out = read_name2(titleid);
-		return out;
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;	
+			case 'N':
+				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
+				break;		
+			case 'M':
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;
+			case 'K':
+				memcpy(temp+strlen(temp), " (NTSC)", 7);
+				break;
+			default:
+				break;
+				
 		}
 	}
-   
-	
-	free(buffer);
-	free(list);
-	
-	out = read_name2(titleid);
-	if(out != NULL)
-	{
-	return out;
-	}
-	
-	return NULL;
+	return temp;
 }
+
 
 void bootTitle(u64 titleid)
 {
@@ -899,7 +883,14 @@ void show_menu()
 	for (i = 0; i < Titlecount; i++)
 	{
 	    TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
-        TitleNames[i] = read_name(TitleIds[i]);
+        TitleNames[i] = get_name(TitleIds[i]);
+		
+		
+		
+		
+		
+		
+		
 		printf(".");
 	}	
 
