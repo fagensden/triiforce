@@ -320,6 +320,30 @@ s32 check_dol(u64 titleid, char *out)
 	return 0;
 }
 
+s32 patch_dol(u8 *dol, s32 size)
+{
+//    s32 ret;
+
+ 
+
+
+  //Patern's
+  //u8 pattern_1[8] = {0x40, 0x82, 0x02, 0x14, 0x3C, 0x60, 0x80, 0x00}
+  
+  //Patches
+  //u8 patch_1[8] = {0x48, 0x00, 0x02, 0x14, 0x3C, 0x60, 0x80, 0x00}
+  
+  //Actual patching
+    //ret = parser(dol, size, &pattern_1, &patch_1, 8, 8, 0);
+    //if(ret < 0) 
+    //{
+      //printf("Patch failed, pattern not found !\n");
+	  //return -1;
+    //}  
+	return 0;
+    
+}  
+
 
 u32 load_dol(u8 *buffer)
 {
@@ -410,11 +434,6 @@ u32 load_dol(u8 *buffer)
 	return dolfile->entry_point;
 }
 
-void patch_dol(u8 *buffer, u32 size)
-{
-
-
-}
 
 u32 loadAndRelocate(u64 titleid)
 {
@@ -456,7 +475,6 @@ u32 loadAndRelocate(u64 titleid)
 	}
 
 	patch_dol(contentBuf, contentSize);
-
 	entry_point = load_dol(contentBuf);
 	free(contentBuf);
 
@@ -839,7 +857,8 @@ void bootTitle(u64 titleid)
 	
 	appJump = (entrypoint)entryPoint;
 	
-	setVideoMode(titleid, 1);
+	setVideoMode(titleid, videooption);
+
 	
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
@@ -987,6 +1006,8 @@ void show_menu()
 int main(int argc, char* argv[])
 {
 	videoInit();
+	
+	Set_Config_to_Defaults();
 
 	printheadline();
 
