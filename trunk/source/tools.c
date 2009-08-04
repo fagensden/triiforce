@@ -219,7 +219,7 @@ s32 identify(u64 titleid, u16 *ios)
 	return 0;
 }
 
-s32 parser(u8 *file, u32 size, u8 *value, u8 *patch, u32 valuesize, u32 patchsize, u32 offset)
+s32 parser(u8 *file, u32 size, u8 *value, u32 valuesize, u8 *patch, u32 patchsize, u32 offset)
 {  
     int i = 0;
     u32 cnt = 0;

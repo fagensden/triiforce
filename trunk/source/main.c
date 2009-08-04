@@ -320,28 +320,17 @@ s32 check_dol(u64 titleid, char *out)
 	return 0;
 }
 
-s32 patch_dol(u8 *dol, s32 size)
+void patch_dol(u8 *buffer, s32 size)
 {
-//    s32 ret;
+	s32 ret;
 
- 
-
-
-  //Patern's
-  //u8 pattern_1[8] = {0x40, 0x82, 0x02, 0x14, 0x3C, 0x60, 0x80, 0x00}
-  
-  //Patches
-  //u8 patch_1[8] = {0x48, 0x00, 0x02, 0x14, 0x3C, 0x60, 0x80, 0x00}
-  
-  //Actual patching
-    //ret = parser(dol, size, &pattern_1, &patch_1, 8, 8, 0);
-    //if(ret < 0) 
-    //{
-      //printf("Patch failed, pattern not found !\n");
-	  //return -1;
-    //}  
-	return 0;
-    
+	if (languageoption != -1)
+	{
+		u8 languagesearchpattern[16] = { 0x7C, 0x60, 0x07, 0x75, 0x40, 0x82, 0x00, 0x10, 0x38, 0x00, 0x00, 0x00, 0x88, 0x61, 0x00, 0x08 };
+		u32 languagepatch = 0x38600000 | languageoption;
+		
+		ret = parser(buffer, size, languagesearchpattern, 16, (u8 *)(&languagepatch), 4, 12);
+	}
 }  
 
 
@@ -524,7 +513,7 @@ void setVideoMode(char Region, int title)
 			case 'P':
 				if (CONF_GetVideo() != CONF_VIDEO_PAL)
 				{
-					Video_Mode = VI_PAL;
+					Video_Mode = VI_EURGB60;
 
 					if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
 					{
@@ -555,7 +544,7 @@ void setVideoMode(char Region, int title)
 				}
 		}
 	}
-	 *(u32 *)0x800000CC = Video_Mode;
+	*(u32 *)0x800000CC = Video_Mode;
     DCFlushRange((void*)0x800000CC, sizeof(u32));
  
     VIDEO_Configure(vmode);
@@ -858,7 +847,6 @@ void bootTitle(u64 titleid)
 	appJump = (entrypoint)entryPoint;
 	
 	setVideoMode(titleid, videooption);
-
 	
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
