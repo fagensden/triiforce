@@ -108,6 +108,7 @@ s32 __FileCmp(const void *a, const void *b)
 	}
 }
 
+
 s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 {
 	s32 res;
@@ -246,10 +247,9 @@ s32 check_dol(u64 titleid, char *out)
 		free(buffer);
 		return ret;
 	}
-	
 	for(cnt=0; cnt < num; cnt++)
     {        
-        if(strstr(list[cnt].name, ".app") != NULL) 
+        if(strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
         {
 			memset(buffer, 0x00, 8);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
@@ -984,7 +984,7 @@ int main(int argc, char* argv[])
 	printheadline();
 
 	IOS_ReloadIOS(249);
-
+	
 	PAD_Init();
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
