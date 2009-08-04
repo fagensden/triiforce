@@ -5,7 +5,7 @@
 
 void Set_Config_to_Defaults()
 {
-	videooption = 0; 
+	videooption = 1; 
 	languageoption = -1; // -1 consolde default
 }
 
