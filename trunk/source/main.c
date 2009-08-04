@@ -772,10 +772,15 @@ char *read_name(u64 titleid)
 		}
 	}
    
-
 	
 	free(buffer);
 	free(list);
+	
+	out = read_name2(titleid);
+	if(out != NULL)
+	{
+	return out;
+	}
 	
 	return NULL;
 }
