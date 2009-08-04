@@ -556,25 +556,18 @@ void setVideoMode(char Region, int title)
     if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
-s32 check_ascii(char *s) 
+bool check_text(char *s) 
 {
     int i = 0;
-    s32 ret = 0;
-    for(i=0; i < sizeof(s); i++)
+    for(i=0; i < strlen(s); i++)
     {
-        if(s[i] < 0x20)
-        { 
-            ret = -1;
-        break;
-      }  
-        if(s[i] > 0x7E) 
-      {
-          ret = -2;
-        break;
-      }  
-  }  
-  
-  return ret;
+        if (s[i] < 32 || s[i] > 165)
+		{
+			return false;
+		}
+	}  
+
+	return true;
 }
 
 char *read_name_from_banner_app(u64 titleid)
@@ -735,7 +728,7 @@ char *get_name(u64 titleid)
 {
 	char *temp;
 	temp = read_name_from_banner_bin(titleid);
-	if (temp == NULL || check_ascii(temp) != 0)
+	if (temp == NULL || !check_text(temp))
 	{
 		temp = read_name_from_banner_app(titleid);
 	}
