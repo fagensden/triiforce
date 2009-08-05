@@ -134,7 +134,8 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 		printf("ISFS_Read failed %d\n", ret);
 		ISFS_Close(Fd);
 		free(status);
-		free(*buffer);	
+		free(*buffer);
+		return ret;
 	}
 	ISFS_Close(Fd);
 
