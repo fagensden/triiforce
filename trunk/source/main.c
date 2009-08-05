@@ -174,7 +174,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	int i;
 	for (i = 0; i < maxnum; i++)
 	{	
-		if (memcmp(list[i].name, "48", 2) != 0)
+		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0) // Ignore channels starting with H (Channels) and U (Loadstructor channels)
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
 			ret = ISFS_ReadDir(path, NULL, &number);	
@@ -259,7 +259,12 @@ s32 check_dol(u64 titleid, char *out)
 					printf("Found LZ77 0x11 compressed content --> %s\n", list[cnt].name);
 				}
 				printf("This is most likely the main DOL, decompressing for checking\n");
-				read_file(path, &compressed, &size_out);
+				ret = read_file(path, &compressed, &size_out);
+				if (ret < 0)
+				{
+					printf("Reading file failed\n");
+					return ret;
+				}
 				printf("read file\n");
 				ret = decompressLZ77content(compressed, 32, &decompressed, &decomp_size);
 				if (ret < 0)
