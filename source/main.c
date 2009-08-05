@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <gccore.h>
 #include <fat.h>
+#include <ogc/lwp_watchdog.h>
+
 
 #include <wiiuse/wpad.h>
 
@@ -791,6 +793,9 @@ void bootTitle(u64 titleid)
 	
 	ISFS_Deinitialize();
 	
+	// Set the clock
+	settime(secs_to_ticks(time(NULL) - 946684800));
+
 	printf("Setting bus speed\n");
 	*(u32*)0x800000F8 = 0x0E7BE2C0;
 	printf("Setting cpu speed\n");
