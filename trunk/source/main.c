@@ -471,9 +471,11 @@ u32 loadAndRelocate(u64 titleid)
 }
 
 
-void setVideoMode(char Region, int title)
+void setVideoMode(u64 titleid, int title)
 {
-    GXRModeObj *vmode = NULL;
+    char Region = (char)((u32)titleid % 256);
+	
+	GXRModeObj *vmode = NULL;
 	// Get vmode and Video_Mode for system settings first
 	u32 tvmode = CONF_GetVideo();
 
@@ -511,6 +513,10 @@ void setVideoMode(char Region, int title)
 		switch (Region & 0xFF) 
 		{
 			case 'P':
+			case 'D':
+			case 'F':
+			case 'X':
+			case 'Y':
 				if (CONF_GetVideo() != CONF_VIDEO_PAL)
 				{
 					Video_Mode = VI_EURGB60;
@@ -876,14 +882,7 @@ void show_menu()
 	for (i = 0; i < Titlecount; i++)
 	{
 	    TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
-        TitleNames[i] = get_name(TitleIds[i]);
-		
-		
-		
-		
-		
-		
-		
+        TitleNames[i] = get_name(TitleIds[i]);		
 		printf(".");
 	}	
 
