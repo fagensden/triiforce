@@ -64,6 +64,20 @@ void write_file(void* data, size_t size, char* name)
 	fclose(out);	
 }
  
+int read_sd(char *path, u8 **buffer)
+{
+	FILE *fp;
+	fp = fopen(path, "rb");
+	fseek(fp, 0, SEEK_END);
+	u32 filesize = ftell(fp);
+	fseek(fp, 0, SEEK_SET); 
+	
+	*buffer = allocate_memory(filesize);
+	
+	fread(*buffer, 1, filesize, fp);
+	fclose(fp);
+	return filesize;
+}	
  
 void do_U8_archive(u8 *buffer, char *path)
 {
@@ -95,6 +109,7 @@ void do_U8_archive(u8 *buffer, char *path)
 	nodes = allocate_memory(sizeof(U8_node) * (num_nodes));
 	//fread(nodes, 1, num_nodes * sizeof(U8_node), fp);
 	memcpy(nodes, buffer+ sizeof(header)+ sizeof(root_node), num_nodes * sizeof(U8_node));
+	printf("Allocate mem & memcpy\n");
     sleep(5);
 	data_offset = be32((u8*) &header.data_offset);
 	rest_size = data_offset - sizeof(header) - (num_nodes+1)*sizeof(U8_node);
@@ -117,7 +132,9 @@ void do_U8_archive(u8 *buffer, char *path)
     if (type == 0x0100) {
       // Directory
       mkdir(sd, 0777);
+	  printf("%s\n", sd);
       chdir(sd);
+	  sprintf(path, "%s/%s", path, name);
       dir_stack[++dir_index] = size;
       printf("%*s%s/\n", dir_index, "", sd);
     } else {
@@ -137,7 +154,7 @@ void do_U8_archive(u8 *buffer, char *path)
     }
  
     while (dir_stack[dir_index] == i+2 && dir_index > 0) {
-      //chdir("..");
+      chdir("..");
       dir_index--;
     }
 	}

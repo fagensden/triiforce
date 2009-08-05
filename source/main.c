@@ -19,6 +19,8 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <gccore.h>
+#include <fat.h>
+
 #include <wiiuse/wpad.h>
 
 #include "tools.h"
@@ -959,7 +961,27 @@ int main(int argc, char* argv[])
 	printheadline();
 
 	IOS_ReloadIOS(249);
+	/*sleep(2);
+	fatInitDefault();
 	
+	u8 *app;
+	int size = read_sd("sd:/00000000.app", &app);
+	do_U8_archive(app+0x640, "sd:/u8");
+	printf("0000000.app\n");
+	sleep(5);
+	u8 *banner;
+	u8 *decompressed;
+	u32 outsize;
+	int bannersize = read_sd("sd:/u8/meta/banner.bin", &banner);
+	decompressLZ77content(banner+0x24, bannersize, &decompressed, &outsize);
+	printf("Lz77\n");
+	sleep(5);
+	FILE *file;
+	file = fopen("sd:/test2.bin", "wb");
+	fwrite(decompressed, 1, outsize, file);
+	fclose(file);
+	do_U8_archive(decompressed, "sd:/u8/extracted");
+	*/
 	PAD_Init();
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
