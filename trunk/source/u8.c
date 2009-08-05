@@ -1,11 +1,16 @@
-/*------------------------------------------------------------
-| U8 extractor based on Parse-u8                              |
-| Copyright 2009 Nicksasa <nicksasa@gmail.com>                |
-| Copyright 2008 Magicus <magicus@gmail.com>                  |
-| Licensed under the terms of the GNU GPL, version 2          |
-| http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt        |
-|                                                             |
---------------------------------------------------------------*/
+/*******************************************************************************
+ * config.c
+ *
+ * Copyright (c) 2008 Magicus <magicus@gmail.com>
+ * Copyright (c) 2009 Nicksasa <nicksasa@gmail.com>
+ *
+ * Distributed under the terms of the GNU General Public License (v2)
+ * See http://www.gnu.org/licenses/gpl-2.0.txt for more info.
+ *
+ * Description:
+ * -----------
+ *
+ ******************************************************************************/
 
 
 #include <sys/stat.h>

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * main.c
+ *
+ * Copyright (c) 2009 The Lemon Man
+ * Copyright (c) 2009 Nicksasa
+ * Copyright (c) 2009 WiiPower
+ *
+ * Distributed under the terms of the GNU General Public License (v2)
+ * See http://www.gnu.org/licenses/gpl-2.0.txt for more info.
+ *
+ * Description:
+ * -----------
+ *
+ ******************************************************************************/
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -67,27 +82,6 @@ void videoInit()
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 }
 
-
-/*
-s32 getTmdInfo(u64 titleid, u16 *bootcontent)
-{
-	printf("Loading TMD...\n");
-	char tmdPath[ISFS_MAXPATH];
-	u8 *tmdBuffer;
-	u32 tmdSize;
-	
-	sprintf(tmdPath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	read_file(tmdPath, &tmdBuffer, &tmdSize);
-	
-	*bootcontent = ((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer))->boot_index;
-	
-	free(tmdBuffer);
-
-	return 0;
-}
-*/
-
-
 s32 __FileCmp(const void *a, const void *b)
 {
 	dirent_t *hdr1 = (dirent_t *)a;
@@ -98,16 +92,9 @@ s32 __FileCmp(const void *a, const void *b)
 		return strcmp(hdr1->name, hdr2->name);
 	} else
 	{
-		if (hdr1->type == DIRENT_T_DIR)
-		{
-			return -1;
-		} else
-		{
-			return 1;
-		}
+		return 0;
 	}
 }
-
 
 s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 {
@@ -123,11 +110,8 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 		return -1;
 	}
 
-	//sleep(2);
-
 	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
 	char ebuf[ISFS_MAXPATH + 1];
-	//char pbuf[ISFS_MAXPATH + 1];
 
 	if(nbuf == NULL)
 	{
@@ -154,14 +138,6 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 		k++;
 
 		strcpy((*ent)[i].name, ebuf);
-		
-		//if(strcmp(path, "/") != 0)
-		//	sprintf(pbuf, "%s/%s", path, ebuf);
-		//else
-		//	sprintf(pbuf, "/%s", ebuf);
-		
-		//(*ent)[i].type = ((isdir(pbuf) == 1) ? DIRENT_T_DIR : DIRENT_T_FILE);
-
 	}
 	
 	qsort(*ent, *cnt, sizeof(dirent_t), __FileCmp);
