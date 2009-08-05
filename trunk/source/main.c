@@ -488,44 +488,49 @@ void setVideoMode(u64 titleid, int title)
 	// Overwrite vmode and Video_Mode when disc region video mode is selected and Wii region doesn't match disc region
 	if (title > 0)
 	{
-		switch (Region & 0xFF) 
+		u32 low;
+		low = TITLE_LOWER(titleid);
+		if (*(char *)&low != 'W') // Don't overwrite video mode for WiiWare
 		{
-			case 'P':
-			case 'D':
-			case 'F':
-			case 'X':
-			case 'Y':
-				if (CONF_GetVideo() != CONF_VIDEO_PAL)
-				{
-					Video_Mode = VI_EURGB60;
-
-					if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
+			switch (Region & 0xFF) 
+			{
+				case 'P':
+				case 'D':
+				case 'F':
+				case 'X':
+				case 'Y':
+					if (CONF_GetVideo() != CONF_VIDEO_PAL)
 					{
-						vmode = &TVNtsc480Prog; // This seems to be correct!
+						Video_Mode = VI_EURGB60;
+
+						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
+						{
+							vmode = &TVNtsc480Prog; // This seems to be correct!
+						}
+						else
+						{
+							vmode = &TVEurgb60Hz480IntDf;
+						}				
 					}
-					else
-					{
-						vmode = &TVEurgb60Hz480IntDf;
-					}				
-				}
-				break;
+					break;
 
-			case 'E':
-			case 'J':
-			default:
-				if (CONF_GetVideo() != CONF_VIDEO_NTSC)
-				{
-					Video_Mode = VI_NTSC;
-
-					if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
+				case 'E':
+				case 'J':
+				default:
+					if (CONF_GetVideo() != CONF_VIDEO_NTSC)
 					{
-						vmode = &TVNtsc480Prog;
+						Video_Mode = VI_NTSC;
+
+						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
+						{
+							vmode = &TVNtsc480Prog;
+						}
+						else
+						{
+							vmode = &TVNtsc480IntDf;
+						}				
 					}
-					else
-					{
-						vmode = &TVNtsc480IntDf;
-					}				
-				}
+			}
 		}
 	}
 	*(u32 *)0x800000CC = Video_Mode;
@@ -721,6 +726,10 @@ char *get_name(u64 titleid)
 	{
 		u32 low;
 		low = TITLE_LOWER(titleid);
+		if (*(char *)&low == 'W')
+		{
+			return temp;
+		}
 		switch(low & 0xFF)
 		{
 			case 'E':
