@@ -311,10 +311,7 @@ void patch_dol(u8 *buffer, s32 size)
 
 	if (languageoption != -1)
 	{
-		u8 languagesearchpattern[16] = { 0x7C, 0x60, 0x07, 0x75, 0x40, 0x82, 0x00, 0x10, 0x38, 0x00, 0x00, 0x00, 0x88, 0x61, 0x00, 0x08 };
-		u32 languagepatch = 0x38600000 | languageoption;
-		
-		ret = parser(buffer, size, languagesearchpattern, 16, (u8 *)(&languagepatch), 4, 12);
+		ret = patch_language(buffer, size, languageoption);
 	}
 }  
 
