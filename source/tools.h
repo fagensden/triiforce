@@ -24,5 +24,6 @@ void set_highlight(bool highlight);
 void waitforbuttonpress(u32 *out, u32 *outGC);
 void printheadline();
 s32 parser(u8 *file, u32 size, u8 *value, u32 valuesize, u8 *patch, u32 patchsize, u32 offset);
+s32 patch_language(u8 *file, u32 size, u32 languageoption);
 
 
