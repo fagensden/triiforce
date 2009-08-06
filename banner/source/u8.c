@@ -117,7 +117,9 @@ void do_U8_archive(u8 *buffer, char *path)
 	string_table = allocate_memory(rest_size);
 	//fread(string_table, 1, rest_size, fp);
 	memcpy(string_table, buffer+ sizeof(header)+ sizeof(root_node)+(num_nodes * sizeof(U8_node)), rest_size);
- 
+    char path2[1024];
+	char sd[1024];
+	sprintf(sd, "%s", path);
 	for (i = 0; i < num_nodes; i++) {
     U8_node* node = &nodes[i];   
     u16 type = be16((u8*)&node->type);
@@ -126,15 +128,16 @@ void do_U8_archive(u8 *buffer, char *path)
     u32 size = be32((u8*)&node->size);
     char* name = (char*) &string_table[name_offset];
     u8* file_data;
-	char sd[1024];
-	sprintf(sd, "%s/%s", path, name);
+	//sprintf(sd, "%s", path);
  
     if (type == 0x0100) {
+	sprintf(sd, "%s/%s", path, name);
       // Directory
       mkdir(sd, 0777);
 	  printf("%s\n", sd);
-      chdir(sd);
-	  sprintf(path, "%s/%s", path, name);
+      //chdir(sd);
+	  //sprintf(sd, "%s/%s", sd, name);
+	  //sprintf(path2, "%s/%s", path, name);
       dir_stack[++dir_index] = size;
       printf("%*s%s/\n", dir_index, "", sd);
     } else {
@@ -143,18 +146,18 @@ void do_U8_archive(u8 *buffer, char *path)
       if (type != 0x0000) {
          printf("Unknown type\n");
       }
- 
+    sprintf(path2, "%s/%s", sd, name);
      // fseek(fp, my_data_offset, SEEK_SET);
       file_data = allocate_memory(size);
       //fread(file_data, 1, size, fp);
 	  memcpy(file_data, buffer + my_data_offset, size);
-      write_file(file_data, size, sd);
+      write_file(file_data, size, path2);
       free(file_data);
-      printf("%*s %s (%d bytes)\n", dir_index, "", sd, size);
+      printf("%*s %s (%d bytes)\n", dir_index, "", path2, size);
     }
  
     while (dir_stack[dir_index] == i+2 && dir_index > 0) {
-      chdir("..");
+    //  chdir("..");
       dir_index--;
     }
 	}

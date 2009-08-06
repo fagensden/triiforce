@@ -18,8 +18,12 @@
 #include <unistd.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <gccore.h>
+#include <ogc/tpl.h>
+#include <math.h>
 #include <fat.h>
+#include <ogc/gx.h>
 #include <ogc/lwp_watchdog.h>
 
 
@@ -33,8 +37,15 @@
 #define DIRENT_T_FILE 0
 #define DIRENT_T_DIR 1
 
-static u32 *xfb = NULL;
-static GXRModeObj *rmode = NULL;
+#define DEFAULT_FIFO_SIZE	(256*1024)
+#define Vector guVector
+
+void *xfb[2] = { NULL, NULL};
+static u32 *xfb2 = NULL;
+GXRModeObj *rmode;
+Mtx GXmodelView2D;
+int whichfb = 0;
+void *gp_fifo = NULL;
 
 // Prevent IOS36 loading at startup
 s32 __IOS_LoadStartupIOS()
@@ -64,14 +75,15 @@ typedef struct _dirent
 	int type;
 } dirent_t;
 
-
-void videoInit()
+void videoInit_()
 {
 	VIDEO_Init();
 	rmode = VIDEO_GetPreferredMode(0);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+   xfb2 = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	//xfb[0] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	//xfb[1] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
 	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetNextFramebuffer(xfb2);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
@@ -83,8 +95,226 @@ void videoInit()
 
 	CON_InitEx(rmode, x, y, w, h);
 
-	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
+	VIDEO_ClearFrameBuffer(rmode, xfb2, COLOR_BLACK);
+	printf("video Init\n");
+	sleep(5);
 }
+void videoInit()
+{
+	f32 yscale;
+	u32 xfbHeight;
+	Mtx perspective;
+	
+	rmode = VIDEO_GetPreferredMode(NULL);
+
+	if (CONF_GetAspectRatio() == CONF_ASPECT_16_9)
+	{
+		rmode->viWidth = 678;
+		rmode->viXOrigin = (VI_MAX_WIDTH_NTSC - 678)/2;
+	}
+
+	VIDEO_Configure (rmode);
+
+	xfb[0] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	xfb[1] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	VIDEO_ClearFrameBuffer (rmode, xfb[0], COLOR_BLACK);
+	VIDEO_ClearFrameBuffer (rmode, xfb[1], COLOR_BLACK);
+
+	VIDEO_SetNextFramebuffer(xfb[whichfb]);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
+
+	gp_fifo = memalign(32,DEFAULT_FIFO_SIZE);
+	memset(gp_fifo,0,DEFAULT_FIFO_SIZE);
+
+	GX_Init (gp_fifo, DEFAULT_FIFO_SIZE);
+
+	GXColor background = { 21, 35, 40, 0xff };
+	GX_SetCopyClear (background, 0x00ffffff);
+
+	yscale = GX_GetYScaleFactor(rmode->efbHeight,rmode->xfbHeight);
+	xfbHeight = GX_SetDispCopyYScale(yscale);
+	GX_SetScissor(0,0,rmode->fbWidth,rmode->efbHeight);
+	GX_SetDispCopySrc(0,0,rmode->fbWidth,rmode->efbHeight);
+	GX_SetDispCopyDst(rmode->fbWidth,xfbHeight);
+	GX_SetCopyFilter(rmode->aa,rmode->sample_pattern,GX_TRUE,rmode->vfilter);
+	GX_SetFieldMode(rmode->field_rendering,((rmode->viHeight==2*rmode->xfbHeight)?GX_ENABLE:GX_DISABLE));
+
+	if (rmode->aa){
+		GX_SetPixelFmt(GX_PF_RGB565_Z16, GX_ZC_LINEAR);
+	}
+	else{
+		GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+	}
+
+	GX_SetDispCopyGamma(GX_GM_1_0);
+
+	GX_ClearVtxDesc();
+	GX_InvVtxCache ();
+	GX_InvalidateTexAll();
+
+	GX_SetVtxDesc(GX_VA_TEX0, GX_NONE);
+	GX_SetVtxDesc(GX_VA_POS, GX_DIRECT);
+	GX_SetVtxDesc (GX_VA_CLR0, GX_DIRECT);
+
+	GX_SetVtxAttrFmt (GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+	GX_SetVtxAttrFmt (GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+	GX_SetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+	GX_SetZMode (GX_FALSE, GX_LEQUAL, GX_TRUE);
+
+	GX_SetNumChans(1);
+	GX_SetNumTexGens(1);
+	GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
+	GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+	GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+
+	guMtxIdentity(GXmodelView2D);
+	guMtxTransApply (GXmodelView2D, GXmodelView2D, 0.0F, 0.0F, -50.0F);
+	GX_LoadPosMtxImm(GXmodelView2D,GX_PNMTX0);
+
+	guOrtho(perspective,0,479,0,639,0,300);
+	GX_LoadProjectionMtx(perspective, GX_ORTHOGRAPHIC);
+
+	GX_SetViewport(0,0,rmode->fbWidth,rmode->efbHeight,0,1);
+	GX_SetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, GX_BL_INVSRCALPHA, GX_LO_CLEAR);
+	GX_SetAlphaUpdate(GX_TRUE);
+	
+	GX_SetCullMode(GX_CULL_NONE);
+}
+
+void gfx_drawtile(f32 xpos, f32 ypos, u16 width, u16 height, u8 data[], float degrees, float scaleX, f32 scaleY, u8 alpha, f32 frame,f32 maxframe )
+//---------------------------------------------------------------------------------
+{
+	GXTexObj texObj;
+	f32 s1= frame/maxframe;
+	f32 s2= (frame+1)/maxframe;
+	f32 t1=0;
+	f32 t2=1;
+	
+	GX_InitTexObj(&texObj, data, width*maxframe,height, GX_TF_RGBA8,GX_CLAMP, GX_CLAMP,GX_FALSE);
+	GX_InitTexObjLOD(&texObj, GX_NEAR, GX_NEAR, 0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
+	GX_LoadTexObj(&texObj, GX_TEXMAP0);
+
+	GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
+  	GX_SetVtxDesc (GX_VA_TEX0, GX_DIRECT);
+
+	Mtx m,m1,m2, mv;
+	width *=.5;
+	height*=.5;
+	guMtxIdentity (m1);
+	guMtxScaleApply(m1,m1,scaleX,scaleY,1.0);
+	Vector axis =(Vector) {0 , 0, 1 };
+	guMtxRotAxisDeg (m2, &axis, degrees);
+	guMtxConcat(m2,m1,m);
+	guMtxTransApply(m,m, xpos+width,ypos+height,0);
+	guMtxConcat (GXmodelView2D, m, mv);
+	GX_LoadPosMtxImm (mv, GX_PNMTX0);
+	GX_Begin(GX_QUADS, GX_VTXFMT0,4);
+  	GX_Position3f32(-width, -height,  0);
+  	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(s1, t1);
+  
+  	GX_Position3f32(width, -height,  0);
+ 	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(s2, t1);
+  
+  	GX_Position3f32(width, height,  0);
+	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(s2, t2);
+  
+  	GX_Position3f32(-width, height,  0);
+	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(s1, t2);
+	GX_End();
+	GX_LoadPosMtxImm (GXmodelView2D, GX_PNMTX0);
+
+	GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
+  	GX_SetVtxDesc (GX_VA_TEX0, GX_NONE);
+}
+
+void gfx_printf(u8 *font,s32 x,s32 y,u8 alpha, char *fmt, ...)
+//---------------------------------------------------------------------------------
+{
+	int i;
+	char buf[1024];
+	int len;
+
+	va_list ap;
+	va_start(ap, fmt);
+	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+  
+	for(i=0;i<len; i++, x+=10)
+	{
+		if(( buf[i] < 33 ) || ( buf[i] > 126 )){
+			continue;
+		}
+
+		gfx_drawtile( x, y, 10, 24, font, 0, 1.0f, 1.0f, alpha, buf[i]-33, 96 );
+	}
+}
+
+void gfx_draw_image(f32 xpos, f32 ypos, u16 width, u16 height, GXTexObj texObj, float degrees, float scaleX, f32 scaleY, u8 alpha )
+//---------------------------------------------------------------------------------
+{	
+	//GXTexObj texObj;
+	//GX_InitTexObj(&texObj, data, width,height, GX_TF_RGBA8,GX_CLAMP, GX_CLAMP,GX_FALSE);
+	GX_LoadTexObj(&texObj, GX_TEXMAP0);
+
+	GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
+  	GX_SetVtxDesc (GX_VA_TEX0, GX_DIRECT);
+
+	Mtx m,m1,m2, mv;
+	width *=.5;
+	height*=.5;
+	guMtxIdentity (m1);
+	guMtxScaleApply(m1,m1,scaleX,scaleY,1.0);
+	Vector axis =(Vector) {0 , 0, 1 };
+	guMtxRotAxisDeg (m2, &axis, degrees);
+	guMtxConcat(m2,m1,m);
+
+	guMtxTransApply(m,m, xpos+width,ypos+height,0);
+	guMtxConcat (GXmodelView2D, m, mv);
+	GX_LoadPosMtxImm (mv, GX_PNMTX0);
+	
+	GX_Begin(GX_QUADS, GX_VTXFMT0,4);
+  	GX_Position3f32(-width, -height,  0);
+  	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(0, 0);
+  
+  	GX_Position3f32(width, -height,  0);
+ 	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(1, 0);
+  
+  	GX_Position3f32(width, height,  0);
+	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(1, 1);
+  
+  	GX_Position3f32(-width, height,  0);
+	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+  	GX_TexCoord2f32(0, 1);
+	GX_End();
+	GX_LoadPosMtxImm (GXmodelView2D, GX_PNMTX0);
+
+	GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
+  	GX_SetVtxDesc (GX_VA_TEX0, GX_NONE);
+}
+
+void gfx_render_direct()
+//---------------------------------------------------------------------------------
+{
+    GX_DrawDone ();
+	whichfb ^= 1;		// flip framebuffer
+	GX_SetZMode(GX_TRUE, GX_LEQUAL, GX_TRUE);
+	GX_SetColorUpdate(GX_TRUE);
+	GX_CopyDisp(xfb[whichfb],GX_TRUE);
+	VIDEO_SetNextFramebuffer(xfb[whichfb]);
+ 	VIDEO_Flush();
+ 	VIDEO_WaitVSync();
+}
+
 
 s32 __FileCmp(const void *a, const void *b)
 {
@@ -966,18 +1196,104 @@ void show_menu()
 			return;
 		}	
 	}	
+
 }
+
+
+
+u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp)
+{
+u8 *app;
+u8 *banner;
+u8 *decompressed_banner;
+u8 *tpl;
+
+int app_size;
+int banner_size;
+int tpl_size;
+u32 decompressed_banner_size;
+
+app_size = read_sd("sd:/00000000.app", &app);
+do_U8_archive(app+0x640, "sd:/u8");
+banner_size = read_sd("sd:/u8/meta/banner.bin", &banner);
+decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
+do_U8_archive(decompressed_banner, "sd:/u8/extracted");
+
+printf("\n\nTPL Stuff...");
+sleep(5);
+/*
+//tpl_size = read_sd("sd:/u8/extracted/timg/BannerImage.tpl", &tpl);
+
+ FILE *tplfp = fopen("sd:/u8/extracted/timg/BannerImage.tpl","rb");
+
+
+                //unsigned short heighttemp = 0;
+                //unsigned short widthtemp = 0;
+
+             //   fseek(tplfp , 0x14, SEEK_SET);
+             //   fread((void*)&heighttemp,1,2,tplfp);
+             //   fread((void*)&widthtemp,1,2,tplfp);
+                fseek (tplfp , 0 , SEEK_END);
+                tpl_size = ftell (tplfp);
+                rewind (tplfp);
+				fread(tpl, 1, tpl_size, tplfp);
+				fclose(tplfp);
+	*/
+tpl_size = read_sd(	"sd:/u8/extracted/timg/BannerImage.tpl", &tpl);		
+
+
+TPLFile tplfile;
+        int ret;
+		printf("Open memory\n");
+		sleep(2);
+
+        ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
+        if(ret < 0) {
+            free(tpl);
+            tpl = NULL;
+            return;
+        }
+		printf("Get texture\n");
+		sleep(2);
+        ret = TPL_GetTexture(&tplfile,0,TexObj);
+        if(ret < 0) {
+            free(tpl);
+            tpl = NULL;
+            return;
+        }
+		printf("close\n");
+		sleep(2);
+        TPL_CloseTPLFile(&tplfile);
+printf("done\n");		
+return tpl_size;		
+		
+}		
+
+
+
 
 int main(int argc, char* argv[])
 {
+	videoInit_();
 	videoInit();
-	
 	Set_Config_to_Defaults();
 
 	printheadline();
 
 	IOS_ReloadIOS(249);
-	
+	fatInitDefault();
+	GXTexObj TexObj;
+	unsigned short heighttemp = 0;
+   unsigned short widthtemp = 0;
+	get_tpl_vc(&TexObj, &heighttemp, &widthtemp);
+	printf("Drawing TPD\n");
+	sleep(5);
+	gfx_draw_image(100, 100, 256, 192, TexObj, 0, 1, 1, 0xff);
+	gfx_render_direct();
+	sleep(5);
+	gfx_draw_image(200, 200, 256, 192, TexObj, 0, 1, 1, 0x00);
+	gfx_render_direct();
+	sleep(5);
 	PAD_Init();
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
