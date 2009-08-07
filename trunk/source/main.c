@@ -36,6 +36,8 @@
 static u32 *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 
+void _unstub_start();
+
 // Prevent IOS36 loading at startup
 s32 __IOS_LoadStartupIOS()
 {
@@ -196,7 +198,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 }
 
 
-s32 check_dol(u64 titleid, char *out)
+s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 {
 	s32 cfd;
     s32 ret;
@@ -205,7 +207,6 @@ s32 check_dol(u64 titleid, char *out)
     char contentpath[ISFS_MAXPATH];
     char path[ISFS_MAXPATH];
     int cnt = 0;
-	bool found = false;
 	
 	u8 LZ77_0x10 = 0x10;
     u8 LZ77_0x11 = 0x11;
@@ -215,10 +216,14 @@ s32 check_dol(u64 titleid, char *out)
 	u32 decomp_size = 0;
 
     u8 *buffer = allocate_memory(8);
+	if (buffer == NULL)
+	{
+		printf("Out of memory\n");
+		return -1;
+	}
 	
-    u8 check1[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
-    u8 check2[1] = {0x00};
-
+    u8 check[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+ 
     sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
     ret = getdir(contentpath, &list, &num);
     if (ret < 0)
@@ -229,8 +234,8 @@ s32 check_dol(u64 titleid, char *out)
 	}
 	for(cnt=0; cnt < num; cnt++)
     {        
-        if(strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
-        {
+        if ((strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) && (strtol(list[cnt].name, NULL, 16) != bootcontent))
+        {			
 			memset(buffer, 0x00, 8);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
@@ -265,6 +270,8 @@ s32 check_dol(u64 titleid, char *out)
 				if (ret < 0)
 				{
 					printf("Reading file failed\n");
+					free(buffer);
+					free(list);
 					return ret;
 				}
 				printf("read file\n");
@@ -279,17 +286,14 @@ s32 check_dol(u64 titleid, char *out)
 				memcpy(buffer, decompressed, 8);
  			}
 			
-	        ret = memcmp(buffer, check1, 6);
+	        ret = memcmp(buffer, check, 6);
             if(ret == 0)
             {
-                ret = memcmp(&buffer[6], check2, 1);
-                if(ret != 0)
-                {
-                    printf("Found DOL --> %s\n", list[cnt].name);
-                    sprintf(out, "%s", path);
-					found = true;
-                    break;
-               } 
+				printf("Found DOL --> %s\n", list[cnt].name);
+				sprintf(out, "%s", path);
+				free(buffer);
+				free(list);
+				return 0;
             } 
         }
     }
@@ -297,12 +301,8 @@ s32 check_dol(u64 titleid, char *out)
 	free(buffer);
 	free(list);
 	
-	if (!found)
-	{
-		printf("No .dol found\n");
-		return -1;
-	}
-	return 0;
+	printf("No .dol found\n");
+	return -1;
 }
 
 void patch_dol(u8 *buffer, s32 size)
@@ -406,50 +406,93 @@ u32 load_dol(u8 *buffer)
 }
 
 
-u32 loadAndRelocate(u64 titleid)
+s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool skip_bootcontent)
 {
-	u8 *contentBuf;
-	u32 contentSize;
-	u32 entry_point;
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
 	int ret;
+	u16 bootindex;
+	u16 bootcontent;
+	bool bootcontent_loaded;
 	
-	char contentPath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32); 
-	printf("Searching for main DOL...\n");
-	ret = check_dol(titleid, contentPath);
+	u8 *tmdBuffer = NULL;
+	u32 tmdSize;
+	tmd_content *p_cr;
+
+	u32 pressed;
+	u32 pressedGC;
+
+	printf("Reading TMD...");
+
+	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+	ret = read_file(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
-		printf("Searching for main.dol failed\n");
-		return 0;
+		printf("Reading TMD failed\n");
+		return ret;
+	}
+	printf("done\n");
+	
+	bootindex = ((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer))->boot_index;
+	p_cr = TMD_CONTENTS(((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer)));
+	bootcontent = p_cr[bootindex].cid;
+
+	free(tmdBuffer);
+
+	sprintf(filepath, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bootcontent);
+
+	if (skip_bootcontent)
+	{
+		bootcontent_loaded = false;
+		printf("Searching for main DOL...\n");
+			
+		ret = check_dol(titleid, filepath, bootcontent);
+		if (ret < 0)
+		{
+			printf("Searching for main.dol failed\n");
+			printf("Press A to load nand loader instead...\n");
+			waitforbuttonpress(&pressed, &pressedGC);
+			if (pressed != WPAD_BUTTON_A && pressedGC != PAD_BUTTON_A)
+			{
+				printf("Other button pressed\n");
+				return ret;
+			}
+			bootcontent_loaded = true;
+		}
+	} else
+	{
+		bootcontent_loaded = true;
 	}
 	
-    printf("Loading DOL: %s\n", contentPath);
+    printf("Loading DOL: %s\n", filepath);
 	
-	ret = read_file(contentPath, &contentBuf, &contentSize);
+	ret = read_file(filepath, contentBuf, contentSize);
 	if (ret < 0)
 	{
 		printf("Reading .dol failed\n");
-		return 0;
+		return ret;
 	}
 	
-	if (isLZ77compressed(contentBuf))
+	if (isLZ77compressed(*contentBuf))
 	{
 		u8 *decompressed;
-		ret = decompressLZ77content(contentBuf, contentSize, &decompressed, &contentSize);
+		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize);
 		if (ret < 0)
 		{
 			printf("Decompression failed\n");
-			free(contentBuf);
+			free(*contentBuf);
 			return ret;
 		}
-		free(contentBuf);
-		contentBuf = decompressed;
+		free(*contentBuf);
+		*contentBuf = decompressed;
+	}	
+	
+	if (bootcontent_loaded)
+	{
+		return 1;
+	} else
+	{
+		return 0;
 	}
-
-	patch_dol(contentBuf, contentSize);
-	entry_point = load_dol(contentBuf);
-	free(contentBuf);
-
-	return entry_point;
 }
 
 
@@ -541,12 +584,12 @@ void setVideoMode(u64 titleid, int title)
     DCFlushRange((void*)0x800000CC, sizeof(u32));
  
     VIDEO_Configure(vmode);
-    VIDEO_SetNextFramebuffer(xfb);
-    VIDEO_SetBlack(FALSE);
-    VIDEO_Flush();
-    VIDEO_WaitVSync();
- 
-    if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	
+	if (vmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
 bool check_text(char *s) 
@@ -769,15 +812,27 @@ char *get_name(u64 titleid)
 void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
+	u32 entryPoint;
 	int ret;
-	u16 requested_ios;
+	u32 requested_ios;
+	u8 *dolbuffer;
+	u32 dolsize;
 	
-	u32 entryPoint = loadAndRelocate(titleid);
-	if (entryPoint == 0)
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
+	if (ret < 0)
 	{
 		printf(".dol loading failed\n");
 		return;
 	}
+
+	if (ret == 0) // not the nand loader
+	{
+		patch_dol(dolbuffer, dolsize);
+	}
+	
+	entryPoint = load_dol(dolbuffer);
+	
+	free(dolbuffer);
 
 	printf(".dol loaded\n");
 
@@ -793,12 +848,15 @@ void bootTitle(u64 titleid)
 	// Set the clock
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
-	printf("Setting bus speed\n");
-	*(u32*)0x800000F8 = 0x0E7BE2C0;
-	printf("Setting cpu speed\n");
-	*(u32*)0x800000FC = 0x2B73A840;
+	if (entryPoint != 0x3400)
+	{
+		printf("Setting bus speed\n");
+		*(u32*)0x800000F8 = 0x0E7BE2C0;
+		printf("Setting cpu speed\n");
+		*(u32*)0x800000FC = 0x2B73A840;
 
-	DCFlushRange((void*)0x800000F8, 0xFF);
+		DCFlushRange((void*)0x800000F8, 0xFF);
+	}
 	
 	// Remove 002 error
 	printf("Fake IOS Version(%u)\n", requested_ios);
@@ -819,7 +877,7 @@ void bootTitle(u64 titleid)
 	printf("ES_SetUID successful\n");
 	printf("Loading complete, booting...\n");
 
-	sleep(5);
+	//sleep(5);
 	
 	appJump = (entrypoint)entryPoint;
 	
@@ -828,7 +886,14 @@ void bootTitle(u64 titleid)
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
 
-	appJump();	
+	if (entryPoint != 0x3400)
+	{
+		appJump();	
+	} else
+	{
+		// TODO: Find out why it doesn't work
+		_unstub_start();
+	}
 }
 
 #define menuitems 4

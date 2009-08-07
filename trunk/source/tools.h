@@ -19,7 +19,7 @@
 
 void *allocate_memory(u32 size);
 s32 read_file(char *filepath, u8 **buffer, u32 *filesize);
-s32 identify(u64 titleid, u16 *ios);
+s32 identify(u64 titleid, u32 *ios);
 void set_highlight(bool highlight);
 void waitforbuttonpress(u32 *out, u32 *outGC);
 void printheadline();

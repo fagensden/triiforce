@@ -145,7 +145,7 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	return 0;
 }
 
-s32 identify(u64 titleid, u16 *ios)
+s32 identify(u64 titleid, u32 *ios)
 {
 	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
 	u8 *tmdBuffer = NULL;
