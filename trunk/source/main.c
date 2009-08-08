@@ -21,20 +21,17 @@
 #include <gccore.h>
 #include <fat.h>
 #include <ogc/lwp_watchdog.h>
-
-
 #include <wiiuse/wpad.h>
 
 #include "tools.h"
 #include "lz77.h"
 #include "u8.h"
 #include "config.h"
-
-#define DIRENT_T_FILE 0
-#define DIRENT_T_DIR 1
+#include "patch.h"
 
 static u32 *xfb = NULL;
 static GXRModeObj *rmode = NULL;
+static u8 Video_Mode;
 
 void _unstub_start();
 
@@ -313,6 +310,12 @@ void patch_dol(u8 *buffer, s32 size)
 	{
 		ret = patch_language(buffer, size, languageoption);
 	}
+	
+	if (videopatchoption != 0)
+	{
+		search_video_modes(buffer, size);
+		patch_video_modes_to(rmode, videopatchoption);
+	}	
 }  
 
 
@@ -496,45 +499,42 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 }
 
 
-void setVideoMode(u64 titleid, int title)
+void determineVideoMode(u64 titleid)
 {
-    char Region = (char)((u32)titleid % 256);
-	
-	GXRModeObj *vmode = NULL;
-	// Get vmode and Video_Mode for system settings first
-	u32 tvmode = CONF_GetVideo();
-
-	// Attention: This returns &TVNtsc480Prog for all progressive video modes
-    vmode = VIDEO_GetPreferredMode(0);
-	
-	u8 Video_Mode;
-
-	switch (tvmode) 
+	if (videooption == 0)
 	{
-		case CONF_VIDEO_PAL:
-			if (CONF_GetEuRGB60() > 0) 
-			{
-				Video_Mode = VI_EURGB60;
-			}
-			else 
-			{
-				Video_Mode = VI_PAL;
-			}
-			break;
+		char Region = (char)((u32)titleid % 256);
+		
+		// Get rmode and Video_Mode for system settings first
+		u32 tvmode = CONF_GetVideo();
 
-		case CONF_VIDEO_MPAL:
-			Video_Mode = VI_MPAL;
-			break;
+		// Attention: This returns &TVNtsc480Prog for all progressive video modes
+		rmode = VIDEO_GetPreferredMode(0);
+		
+		switch (tvmode) 
+		{
+			case CONF_VIDEO_PAL:
+				if (CONF_GetEuRGB60() > 0) 
+				{
+					Video_Mode = VI_EURGB60;
+				}
+				else 
+				{
+					Video_Mode = VI_PAL;
+				}
+				break;
 
-		case CONF_VIDEO_NTSC:
-		default:
-			Video_Mode = VI_NTSC;
-			
-	}
+			case CONF_VIDEO_MPAL:
+				Video_Mode = VI_MPAL;
+				break;
 
-	// Overwrite vmode and Video_Mode when disc region video mode is selected and Wii region doesn't match disc region
-	if (title > 0)
-	{
+			case CONF_VIDEO_NTSC:
+			default:
+				Video_Mode = VI_NTSC;
+				
+		}
+
+		// Overwrite rmode and Video_Mode when Default Video Mode is selected and Wii region doesn't match the channel region
 		u32 low;
 		low = TITLE_LOWER(titleid);
 		if (*(char *)&low != 'W') // Don't overwrite video mode for WiiWare
@@ -552,11 +552,11 @@ void setVideoMode(u64 titleid, int title)
 
 						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
 						{
-							vmode = &TVNtsc480Prog; // This seems to be correct!
+							rmode = &TVNtsc480Prog; // This seems to be correct!
 						}
 						else
 						{
-							vmode = &TVEurgb60Hz480IntDf;
+							rmode = &TVEurgb60Hz480IntDf;
 						}				
 					}
 					break;
@@ -567,29 +567,69 @@ void setVideoMode(u64 titleid, int title)
 					if (CONF_GetVideo() != CONF_VIDEO_NTSC)
 					{
 						Video_Mode = VI_NTSC;
-
 						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
 						{
-							vmode = &TVNtsc480Prog;
+							rmode = &TVNtsc480Prog;
 						}
 						else
 						{
-							vmode = &TVNtsc480IntDf;
+							rmode = &TVNtsc480IntDf;
 						}				
 					}
 			}
 		}
+	} else
+	{
+		if (videooption == 1)
+		{
+			rmode = &TVNtsc480IntDf;
+		} else
+		if (videooption == 2)
+		{
+			rmode = &TVNtsc480Prog;
+		} else
+		if (videooption == 3)
+		{
+			rmode = &TVEurgb60Hz480IntDf;
+		} else
+		if (videooption == 4)
+		{
+			rmode = &TVEurgb60Hz480Prog;
+		} else
+		if (videooption == 5)
+		{
+			rmode = &TVPal528IntDf;
+		} else
+		if (videooption == 6)
+		{
+			rmode = &TVMpal480IntDf;
+		} else
+		if (videooption == 7)
+		{
+			rmode = &TVMpal480Prog;
+		}
+		Video_Mode = (rmode->viTVMode) >> 2;
 	}
+}
+
+void setVideoMode()
+{	
 	*(u32 *)0x800000CC = Video_Mode;
-    DCFlushRange((void*)0x800000CC, sizeof(u32));
- 
-    VIDEO_Configure(vmode);
+	DCFlushRange((void*)0x800000CC, sizeof(u32));
+	
+	// Overwrite all progressive video modes as they are broken in libogc
+	if (videomode_interlaced(rmode) == 0)
+	{
+		rmode = &TVNtsc480Prog;
+	}
+
+	VIDEO_Configure(rmode);
 	VIDEO_SetNextFramebuffer(xfb);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
 	
-	if (vmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
+	if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
 bool check_text(char *s) 
@@ -825,6 +865,8 @@ void bootTitle(u64 titleid)
 		return;
 	}
 
+	determineVideoMode(titleid);
+	
 	if (ret == 0) // not the nand loader
 	{
 		patch_dol(dolbuffer, dolsize);
@@ -881,7 +923,7 @@ void bootTitle(u64 titleid)
 	
 	appJump = (entrypoint)entryPoint;
 	
-	setVideoMode(titleid, videooption);
+	setVideoMode();
 	
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
@@ -896,7 +938,7 @@ void bootTitle(u64 titleid)
 	}
 }
 
-#define menuitems 4
+#define menuitems 5
 
 void show_menu()
 {
@@ -906,12 +948,13 @@ void show_menu()
 	int ret;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 2, 11 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11 };
 
-	u32 optionselected[menuitems] = { 0 , 0, videooption, languageoption+1};
+	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1};
 
 	char *start[1] = { "Start" };
-	char *regionoptions[2] = { "Wii region", "Channel region" };
+	char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
+	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
 
 	u64 TitleIds[255];
@@ -936,7 +979,7 @@ void show_menu()
 	printf("...");
 	
 	optioncount[1] = Titlecount;
-	char **optiontext[menuitems] = { start, TitleNames, regionoptions, languageoptions };
+	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions };
 
 	for (i = 0; i < Titlecount; i++)
 	{
@@ -1017,7 +1060,8 @@ void show_menu()
 			if (selection == 0)
 			{
 				videooption = optionselected[2];
-				languageoption = optionselected[3]-1;				
+				videopatchoption = optionselected[3];
+				languageoption = optionselected[4]-1;				
 				
 				bootTitle(TitleIds[optionselected[1]]);
 				printf("Press any button to contine\n");
