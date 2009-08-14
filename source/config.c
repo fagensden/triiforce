@@ -23,5 +23,9 @@ void Set_Config_to_Defaults()
 	videooption = 0; 
 	languageoption = -1; // -1 consolde default
 	videopatchoption = 0;
+	
+	hooktypeoption = 6;
+	debuggeroption = 1;
+	ocarinaoption = 1;
 }
 
