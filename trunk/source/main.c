@@ -28,6 +28,8 @@
 #include "u8.h"
 #include "config.h"
 #include "patch.h"
+#include "codes/codes.h"
+#include "codes/patchcode.h"
 
 static u32 *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -315,7 +317,12 @@ void patch_dol(u8 *buffer, s32 size)
 	{
 		search_video_modes(buffer, size);
 		patch_video_modes_to(rmode, videopatchoption);
-	}	
+	}
+
+	if (hooktypeoption != 0)
+	{
+		//dochannelhooks(buffer, size);	
+	}
 }  
 
 
@@ -915,8 +922,19 @@ void bootTitle(u64 titleid)
 	{
 		printf("ES_SetUID failed %d", ret);
 		return;
-	}
+	}	
 	printf("ES_SetUID successful\n");
+	
+	// Test1
+	*(u32*)0xCD00643C = 0x00000000;	// 32Mhz on Bus
+	DCFlushRange((void*)0xCD00643C, 4);
+	
+	// For testing, this should be in patch_dol
+	do_codes(titleid);
+	dochannelhooks((void*)0x8132ff80, 0x380000);
+	DCFlushRange((void*)0x8132ff80, 0x380000);
+
+
 	printf("Loading complete, booting...\n");
 
 	//sleep(5);

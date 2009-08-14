@@ -19,5 +19,10 @@ s32 videooption;
 u32 languageoption;
 u32 videopatchoption;
 
+u32 hooktypeoption;
+u32 debuggeroption;
+u32 ocarinaoption;
+
+
 void Set_Config_to_Defaults();
 

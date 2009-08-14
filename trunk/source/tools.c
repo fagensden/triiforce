@@ -23,7 +23,7 @@
 #include "tools.h"
 
 #define TRIIFORCE_MAJOR 0
-#define TRIIFORCE_MINOR 3
+#define TRIIFORCE_MINOR 32
 
 void printheadline()
 {
