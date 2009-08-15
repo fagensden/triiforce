@@ -31,6 +31,10 @@
 #include "patch.h"
 #include "codes/codes.h"
 #include "codes/patchcode.h"
+#include "nand.h"
+
+#define EMU_SD 1
+#define EMU_USB 2
 
 static u32 *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -43,6 +47,7 @@ s32 __IOS_LoadStartupIOS()
 {
 	return 0;
 }
+
 
 typedef void (*entrypoint) (void);
 
@@ -214,6 +219,8 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	u8 *compressed;
 	u32 size_out = 0;
 	u32 decomp_size = 0;
+	
+	
 
     u8 *buffer = allocate_memory(8);
 	if (buffer == NULL)
@@ -869,7 +876,7 @@ void bootTitle(u64 titleid)
 	u8 *dolbuffer;
 	u32 dolsize;
 	
-	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, false);
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
 	if (ret < 0)
 	{
 		printf(".dol loading failed\n");
@@ -931,7 +938,7 @@ void bootTitle(u64 titleid)
 	DCFlushRange((void*)0xCD00643C, 4);
 	
 	// For testing, this should be in patch_dol
-	do_codes(titleid);
+	//do_codes(titleid);
 	//dochannelhooks((void*)0x8132ff80, 0x380000);
 	//DCFlushRange((void*)0x8132ff80, 0x380000);
 
@@ -940,7 +947,7 @@ void bootTitle(u64 titleid)
 	//sleep(5);
 	
 	appJump = (entrypoint)entryPoint;
-	
+	sleep(5);
 	setVideoMode();
 	
 	WPAD_Shutdown();
@@ -1138,12 +1145,14 @@ int main(int argc, char* argv[])
 {
 	videoInit();
 	
+	
 	Set_Config_to_Defaults();
 
 	printheadline();
 
 	IOS_ReloadIOS(249);
-	
+
+
 	PAD_Init();
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
