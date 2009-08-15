@@ -23,6 +23,7 @@
 #include <ogc/lwp_watchdog.h>
 #include <wiiuse/wpad.h>
 
+#include "main.h"
 #include "tools.h"
 #include "lz77.h"
 #include "u8.h"
@@ -304,24 +305,27 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	return -1;
 }
 
-void patch_dol(u8 *buffer, s32 size)
+void patch_dol(u8 *buffer, s32 size, bool bootcontent)
 {
 	s32 ret;
 
-	if (languageoption != -1)
+	if (!bootcontent)
 	{
-		ret = patch_language(buffer, size, languageoption);
-	}
-	
-	if (videopatchoption != 0)
-	{
-		search_video_modes(buffer, size);
-		patch_video_modes_to(rmode, videopatchoption);
+		if (languageoption != -1)
+		{
+			ret = patch_language(buffer, size, languageoption);
+		}
+		
+		if (videopatchoption != 0)
+		{
+			search_video_modes(buffer, size);
+			patch_video_modes_to(rmode, videopatchoption);
+		}
 	}
 
 	if (hooktypeoption != 0)
 	{
-		//dochannelhooks(buffer, size);	
+		dochannelhooks(buffer, size);	
 	}
 }  
 
@@ -448,6 +452,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 
 	free(tmdBuffer);
 
+	// Write bootcontent to filepath and overwrite it in case another .dol is found
 	sprintf(filepath, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bootcontent);
 
 	if (skip_bootcontent)
@@ -859,13 +864,12 @@ char *get_name(u64 titleid)
 void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
-	u32 entryPoint;
 	int ret;
 	u32 requested_ios;
 	u8 *dolbuffer;
 	u32 dolsize;
 	
-	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, false);
 	if (ret < 0)
 	{
 		printf(".dol loading failed\n");
@@ -874,10 +878,7 @@ void bootTitle(u64 titleid)
 
 	determineVideoMode(titleid);
 	
-	if (ret == 0) // not the nand loader
-	{
-		patch_dol(dolbuffer, dolsize);
-	}
+	patch_dol(dolbuffer, dolsize, (ret == 1));
 	
 	entryPoint = load_dol(dolbuffer);
 	
@@ -931,9 +932,8 @@ void bootTitle(u64 titleid)
 	
 	// For testing, this should be in patch_dol
 	do_codes(titleid);
-	dochannelhooks((void*)0x8132ff80, 0x380000);
-	DCFlushRange((void*)0x8132ff80, 0x380000);
-
+	//dochannelhooks((void*)0x8132ff80, 0x380000);
+	//DCFlushRange((void*)0x8132ff80, 0x380000);
 
 	printf("Loading complete, booting...\n");
 
@@ -948,11 +948,50 @@ void bootTitle(u64 titleid)
 
 	if (entryPoint != 0x3400)
 	{
-		appJump();	
+		if (hooktypeoption != 0)
+		{
+			__asm__(
+						"lis %r3, entryPoint@h\n"
+						"ori %r3, %r3, entryPoint@l\n"
+						"lwz %r3, 0(%r3)\n"
+						"mtlr %r3\n"
+						"lis %r3, 0x8000\n"
+						"ori %r3, %r3, 0x18A8\n"
+						"mtctr %r3\n"
+						"bctr\n"
+						);
+						
+		} else
+		{
+			appJump();	
+		}
 	} else
 	{
-		// TODO: Find out why it doesn't work
-		_unstub_start();
+		if (hooktypeoption != 0)
+		{
+			__asm__(
+						"lis %r3, returnpoint@h\n"
+						"ori %r3, %r3, returnpoint@l\n"
+						"mtlr %r3\n"
+						"lis %r3, 0x8000\n"
+						"ori %r3, %r3, 0x18A8\n"
+						"mtctr %r3\n"
+						"bctr\n"
+						"returnpoint:\n"
+						"bl DCDisable\n"
+						"bl ICDisable\n"
+						"li %r3, 0\n"
+						"mtsrr1 %r3\n"
+						"lis %r4, entryPoint@h\n"
+						"ori %r4,%r4,entryPoint@l\n"
+						"lwz %r4, 0(%r4)\n"
+						"mtsrr0 %r4\n"
+						"rfi\n"
+						);
+		} else
+		{
+			_unstub_start();
+		}
 	}
 }
 
