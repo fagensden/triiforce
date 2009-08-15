@@ -1153,9 +1153,8 @@ void show_nand_menu()
 	u32 optioncount[nandmenuitems] = { 3 };
 	u32 optionselected[nandmenuitems] = { 0 };
 
-	char *nandoptions[3] = { "Use NAND", "Emulate with SD", "Emulate with USB" };
+	char *nandoptions[3] = { "Use real NAND", "Use SD-NAND", "Use USB-NAND" };
 	char **optiontext[nandmenuitems] = { nandoptions };
-	
 
 	while (true)
 	{
@@ -1262,7 +1261,6 @@ int main(int argc, char* argv[])
 {
 	videoInit();
 	
-	
 	Set_Config_to_Defaults();
 
 	printheadline();
@@ -1273,18 +1271,17 @@ int main(int argc, char* argv[])
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
 
-/*	if ((IOS_GetVersion() != 249) || IOS_GetRevision() < 14)
-	{
-		printf("You need at least revision 14\n");
-		sleep(15);
-		exit(1);
-	}
-*/
 	ISFS_Initialize();
 
 	Set_Config_to_Defaults();
 	
-	show_nand_menu();
+	if (IOS_GetVersion() == 249 && IOS_GetRevision() == 14)
+	{
+		show_nand_menu();
+	} else
+	{
+		show_menu();
+	}
 	
 	printf("Press any button\n");
 	waitforbuttonpress(NULL, NULL);
