@@ -92,8 +92,11 @@ s32 Nand_Disable(void)
 	return ret;
 } 
 
+static int mounted = 0;
+
 s32 Enable_Emu(int selection)
 {
+	if (mounted != 0) return -1;
 	s32 ret;
 	nandDevice *ndev = NULL;
 	ndev = &ndevList[selection];
@@ -112,16 +115,22 @@ s32 Enable_Emu(int selection)
 		printf(" ERROR Enable! (ret = %d)\n", ret);
 		return ret;
 	}
+	mounted = selection;
 	return 0;
 }	
-s32 Disable_Emu(int selection)
+
+s32 Disable_Emu()
 {
+	if (mounted == 0) return 0;
+	
 	nandDevice *ndev = NULL;
-	ndev = &ndevList[selection];
+	ndev = &ndevList[mounted];
 	
 	Nand_Unmount(ndev);
 	Nand_Disable();
 	
+	mounted = 0;
+	
 	return 0;
-		
+	
 }	
