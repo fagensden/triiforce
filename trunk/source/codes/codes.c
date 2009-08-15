@@ -105,7 +105,7 @@ s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
 
 	fflush(stdout);
 	
-	sprintf(buf, "fat:/TriiForce/codes/FCWE.gct");
+	sprintf(buf, "fat:/TriiForce/codes/%s.gct", filename);
 	fp = fopen(buf, "rb");
 
 	if (!fp) 
