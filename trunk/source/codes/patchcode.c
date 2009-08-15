@@ -431,7 +431,10 @@ void dochannelhooks(void *addr, u32 len)
 				break;
 				
 			case 0x01:	
-				if(memcmp(addr_start, viwiihooks, sizeof(viwiihooks))==0){
+				if(memcmp(addr_start, viwiihooks, sizeof(viwiihooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -443,11 +446,17 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x02:
 				
-				if(memcmp(addr_start, kpadhooks, sizeof(kpadhooks))==0){
+				if(memcmp(addr_start, kpadhooks, sizeof(kpadhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				
-				if(memcmp(addr_start, kpadoldhooks, sizeof(kpadoldhooks))==0){
+				if(memcmp(addr_start, kpadoldhooks, sizeof(kpadoldhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -459,7 +468,10 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x03:
 				
-				if(memcmp(addr_start, joypadhooks, sizeof(joypadhooks))==0){
+				if(memcmp(addr_start, joypadhooks, sizeof(joypadhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -471,7 +483,10 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x04:
 				
-				if(memcmp(addr_start, gxdrawhooks, sizeof(gxdrawhooks))==0){
+				if(memcmp(addr_start, gxdrawhooks, sizeof(gxdrawhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -483,7 +498,10 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x05:
 				
-				if(memcmp(addr_start, gxflushhooks, sizeof(gxflushhooks))==0){
+				if(memcmp(addr_start, gxflushhooks, sizeof(gxflushhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -495,10 +513,16 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x06:
 				
-				if(memcmp(addr_start, ossleepthreadhooks, sizeof(ossleepthreadhooks))==0){
+				if(memcmp(addr_start, ossleepthreadhooks, sizeof(ossleepthreadhooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
+				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
+				{
+					printf("Multidol-Hook\n");
+					sleep(5);
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
 					DCFlushRange(((u32*)addr_start)+1, 4);
 					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
@@ -507,7 +531,10 @@ void dochannelhooks(void *addr, u32 len)
 				
 			case 0x07:
 				
-				if(memcmp(addr_start, axnextframehooks, sizeof(axnextframehooks))==0){
+				if(memcmp(addr_start, axnextframehooks, sizeof(axnextframehooks))==0)
+				{
+					printf("Hook\n");
+					sleep(5);
 					patchhook((u32)addr_start, len);
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
@@ -522,7 +549,8 @@ void dochannelhooks(void *addr, u32 len)
 				//if(memcmp(addr_start, customhook, customhooksize)==0){
 				//	patchhook((u32)addr_start, len);
 				//}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
+				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
+				{
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
 					DCFlushRange(((u32*)addr_start)+1, 4);
 					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
