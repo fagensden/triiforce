@@ -33,9 +33,6 @@
 #include "codes/patchcode.h"
 #include "nand.h"
 
-#define EMU_SD 1
-#define EMU_USB 2
-
 static u32 *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 static u8 Video_Mode;
@@ -933,12 +930,14 @@ void bootTitle(u64 titleid)
 	}	
 	printf("ES_SetUID successful\n");
 	
-	// Test1
-	*(u32*)0xCD00643C = 0x00000000;	// 32Mhz on Bus
-	DCFlushRange((void*)0xCD00643C, 4);
+	//*(u32*)0xCD00643C = 0x00000000;	// 32Mhz on Bus
+	//DCFlushRange((void*)0xCD00643C, 4);
 	
 	// For testing, this should be in patch_dol
-	//do_codes(titleid);
+	if (hooktypeoption != 0)
+	{
+		do_codes(titleid);
+	}
 	//dochannelhooks((void*)0x8132ff80, 0x380000);
 	//DCFlushRange((void*)0x8132ff80, 0x380000);
 
@@ -1141,6 +1140,124 @@ void show_menu()
 	}	
 }
 
+#define nandmenuitems 1
+
+void show_nand_menu()
+{
+	int i;
+	u32 pressed;
+	u32 pressedGC;
+	int ret;
+
+	int selection = 0;
+	u32 optioncount[nandmenuitems] = { 3 };
+	u32 optionselected[nandmenuitems] = { 0 };
+
+	char *nandoptions[3] = { "Use NAND", "Emulate with SD", "Emulate with USB" };
+	char **optiontext[nandmenuitems] = { nandoptions };
+	
+
+	while (true)
+	{
+		printf("\x1b[J");
+		
+		printheadline();
+		printf("\n");
+		
+		for (i = 0; i < nandmenuitems; i++)
+		{
+			set_highlight(selection == i);
+			if (optiontext[i][optionselected[i]] == NULL)
+            {
+                printf("???\n");
+            } else
+			{
+				printf("%s\n", optiontext[i][optionselected[i]]);
+            }
+			set_highlight(false);
+		}
+		printf("\n");
+		
+		waitforbuttonpress(&pressed, &pressedGC);
+		
+		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
+		{
+			if (selection > 0)
+			{
+				selection--;
+			} else
+			{
+				selection = nandmenuitems-1;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+		{
+			if (selection < nandmenuitems-1)
+			{
+				selection++;
+			} else
+			{
+				selection = 0;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
+		{	
+			if (optionselected[selection] > 0)
+			{
+				optionselected[selection]--;
+			} else
+			{
+				optionselected[selection] = optioncount[selection]-1;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
+		{	
+			if (optionselected[selection] < optioncount[selection]-1)
+			{
+				optionselected[selection]++;
+			} else
+			{
+				optionselected[selection] = 0;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
+		{
+			if (selection == 0)
+			{
+				ret = 0;
+				if (optionselected[0] == 1)
+				{
+					ret = Enable_Emu(EMU_SD);
+				} else
+				if (optionselected[0] == 2)
+				{
+					ret = Enable_Emu(EMU_USB);
+				}
+				if (ret < 0)
+				{
+					return;
+				}
+				
+				show_menu();
+				printf("Press any button to contine\n");
+				waitforbuttonpress(NULL, NULL);
+				return;
+			}
+		}
+		
+		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		{
+			printf("Exiting...\n");
+			return;
+		}	
+	}	
+}
+
+
 int main(int argc, char* argv[])
 {
 	videoInit();
@@ -1151,7 +1268,6 @@ int main(int argc, char* argv[])
 	printheadline();
 
 	IOS_ReloadIOS(249);
-
 
 	PAD_Init();
 	WPAD_Init();
@@ -1168,7 +1284,7 @@ int main(int argc, char* argv[])
 
 	Set_Config_to_Defaults();
 	
-	show_menu();
+	show_nand_menu();
 	
 	printf("Press any button\n");
 	waitforbuttonpress(NULL, NULL);

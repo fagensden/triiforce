@@ -15,12 +15,15 @@ typedef struct {
 } nandDevice; 
 
 
+#define EMU_SD 1
+#define EMU_USB 2
+
 /* Prototypes */
 s32 Nand_Mount(nandDevice *);
 s32 Nand_Unmount(nandDevice *);
 s32 Nand_Enable(nandDevice *);
 s32 Nand_Disable(void);
 s32 Enable_Emu(int selection);
-s32 Disable_Emu(int selection);
+s32 Disable_Emu();
 
 #endif
