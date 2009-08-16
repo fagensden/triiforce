@@ -1064,7 +1064,13 @@ void show_menu()
 			set_highlight(selection == i);
 			if (optiontext[i][optionselected[i]] == NULL)
             {
-                printf("???\n");
+				if (i == 1)
+				{
+					printf("%08x%08x\n", TITLE_UPPER(TitleIds[optionselected[i]]), TITLE_LOWER(TitleIds[optionselected[i]]) );
+				} else
+				{
+					printf("???\n");
+				}
             } else
 			{
 				printf("%s\n", optiontext[i][optionselected[i]]);
