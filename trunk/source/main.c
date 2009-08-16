@@ -32,10 +32,11 @@
 #include "codes/codes.h"
 #include "codes/patchcode.h"
 #include "nand.h"
+#include "background.h"
 
-static u32 *xfb = NULL;
-static GXRModeObj *rmode = NULL;
-static u8 Video_Mode;
+u32 *xfb = NULL;
+GXRModeObj *rmode = NULL;
+u8 Video_Mode;
 
 void _unstub_start();
 
@@ -85,7 +86,7 @@ void videoInit()
     w = rmode->fbWidth - (32);
     h = rmode->xfbHeight - (48);
 
-	CON_InitEx(rmode, x, y, w, h);
+	CON_InitEx(rmode, x, y+240, w, h-240);
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 }
@@ -1260,6 +1261,8 @@ void show_nand_menu()
 int main(int argc, char* argv[])
 {
 	videoInit();
+	
+	DrawBackground(rmode);
 	
 	Set_Config_to_Defaults();
 
