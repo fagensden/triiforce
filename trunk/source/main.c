@@ -82,11 +82,20 @@ void videoInit()
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
  	
-    int x = 24, y = 32, w, h;
-    w = rmode->fbWidth - (32);
-    h = rmode->xfbHeight - (48);
+    int x = 32, y = 212, w, h;
+    w = rmode->fbWidth - 64;
+    h = rmode->xfbHeight - 268 - 32;
 
-	CON_InitEx(rmode, x, y+240, w, h-240);
+	CON_InitEx(rmode, x, y, w, h);
+	
+	// Set console text color
+	printf("\x1b[%u;%um", 37, false);
+	printf("\x1b[%u;%um", 40, false);
+	
+//    int x = 24, y = 32, w, h;
+//    w = rmode->fbWidth - (32);
+//    h = rmode->xfbHeight - (48);
+//	CON_InitEx(rmode, x, y+240, w, h-240);
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 }
@@ -820,6 +829,9 @@ char *read_name_from_banner_bin(u64 titleid)
 char *get_name(u64 titleid)
 {
 	char *temp;
+	u32 low;
+	low = TITLE_LOWER(titleid);
+
 	temp = read_name_from_banner_bin(titleid);
 	if (temp == NULL || !check_text(temp))
 	{
@@ -828,8 +840,6 @@ char *get_name(u64 titleid)
 	
 	if (temp != NULL)
 	{
-		u32 low;
-		low = TITLE_LOWER(titleid);
 		if (*(char *)&low == 'W')
 		{
 			return temp;
@@ -862,6 +872,14 @@ char *get_name(u64 titleid)
 				
 		}
 	}
+	
+	if (temp == NULL)
+	{
+		temp = malloc(6);
+		memset(temp, 0, 6);
+		memcpy(temp, (char *)(&low), 4);
+	}
+	
 	return temp;
 }
 
@@ -1064,13 +1082,7 @@ void show_menu()
 			set_highlight(selection == i);
 			if (optiontext[i][optionselected[i]] == NULL)
             {
-				if (i == 1)
-				{
-					printf("%08x%08x\n", TITLE_UPPER(TitleIds[optionselected[i]]), TITLE_LOWER(TitleIds[optionselected[i]]) );
-				} else
-				{
-					printf("???\n");
-				}
+				printf("???\n");
             } else
 			{
 				printf("%s\n", optiontext[i][optionselected[i]]);
@@ -1134,7 +1146,7 @@ void show_menu()
 				languageoption = optionselected[4]-1;				
 				
 				bootTitle(TitleIds[optionselected[1]]);
-				printf("Press any button to contine\n");
+				printf("Press any button to continue\n");
 				waitforbuttonpress(NULL, NULL);
 			}
 		}
@@ -1249,8 +1261,6 @@ void show_nand_menu()
 				}
 				
 				show_menu();
-				printf("Press any button to contine\n");
-				waitforbuttonpress(NULL, NULL);
 				return;
 			}
 		}
