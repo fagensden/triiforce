@@ -17,6 +17,9 @@
 #define TITLE_LOWER(x)		((u32)(x))
 #define TITLE_ID(x,y)		(((u64)(x) << 32) | (y))
 
+bool Power_Flag;
+bool Reset_Flag;
+
 void *allocate_memory(u32 size);
 s32 read_file(char *filepath, u8 **buffer, u32 *filesize);
 s32 identify(u64 titleid, u32 *ios);
