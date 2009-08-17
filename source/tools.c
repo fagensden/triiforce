@@ -23,7 +23,7 @@
 #include "tools.h"
 
 #define TRIIFORCE_MAJOR 0
-#define TRIIFORCE_MINOR 4
+#define TRIIFORCE_MINOR 42
 
 void printheadline()
 {
@@ -56,6 +56,21 @@ void *allocate_memory(u32 size)
 	return memalign(32, (size+31)&(~31) );
 }
 
+void Verify_Flags()
+{
+	if (Power_Flag)
+	{
+		WPAD_Shutdown();
+		STM_ShutdownToStandby();
+	}
+	if (Reset_Flag)
+	{
+		WPAD_Shutdown();
+		STM_RebootSystem();
+	}
+}
+
+
 void waitforbuttonpress(u32 *out, u32 *outGC)
 {
 	u32 pressed = 0;
@@ -63,6 +78,8 @@ void waitforbuttonpress(u32 *out, u32 *outGC)
 
 	while (true)
 	{
+		Verify_Flags();
+		
 		WPAD_ScanPads();
 		pressed = WPAD_ButtonsDown(0);
 

@@ -46,6 +46,15 @@ s32 __IOS_LoadStartupIOS()
 	return 0;
 }
 
+static void power_cb() 
+{
+	Power_Flag = true;
+}
+
+static void reset_cb() 
+{
+	Reset_Flag = true;
+}
 
 typedef void (*entrypoint) (void);
 
@@ -84,7 +93,7 @@ void videoInit()
  	
     int x = 32, y = 212, w, h;
     w = rmode->fbWidth - 64;
-    h = rmode->xfbHeight - 268 - 32;
+    h = rmode->xfbHeight - 212 - 32;
 
 	CON_InitEx(rmode, x, y, w, h);
 	
@@ -170,7 +179,8 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	u32 maxnum;
 	u32 tempnum = 0;
 	u32 number;
-	dirent_t *list;
+	dirent_t *list = NULL;
+	dirent_t *templist;
     char path[ISFS_MAXPATH];
     sprintf(path, "/title/00010001");
     ret = getdir(path, &list, &maxnum);
@@ -183,6 +193,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	char **temp = allocate_memory(maxnum*4);
 	if (temp == NULL)
 	{
+		free(list);
 		printf("Out of memory\n");
 		return -1;
 	}
@@ -193,8 +204,16 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0) // Ignore channels starting with H (Channels) and U (Loadstructor channels)
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
-			ret = ISFS_ReadDir(path, NULL, &number);	
-			if (number > 1) // 1 == tmd only
+			
+			// Dirty workaround, ISFS_ReadDir does not work properly on nand emu
+			templist = NULL;
+			ret = getdir(path, &templist, &number);	
+			if (ret >= 0 && templist != NULL)
+			{
+				free(templist);
+			}
+			
+			if (ret >= 0 && number > 1) // 1 == tmd only
 			{
 				temp[tempnum] = allocate_memory(10);
 				memset(temp[tempnum], 0x00, 10);
@@ -206,6 +225,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 
 	*TitleIds = temp;
 	*num = tempnum;
+	free(list);
 	return 0;
 }
 
@@ -1285,6 +1305,11 @@ int main(int argc, char* argv[])
 	printheadline();
 
 	IOS_ReloadIOS(249);
+
+	Power_Flag = false;
+	Reset_Flag = false;
+	SYS_SetPowerCallback (power_cb);
+    SYS_SetResetCallback (reset_cb);
 
 	PAD_Init();
 	WPAD_Init();
