@@ -18,39 +18,54 @@
 #include <unistd.h>
 #include <malloc.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <gccore.h>
-#include <ogc/tpl.h>
-#include <math.h>
 #include <fat.h>
-#include <ogc/gx.h>
 #include <ogc/lwp_watchdog.h>
-
-
 #include <wiiuse/wpad.h>
+#include <ogc/gx.h>
 
+#include "main.h"
 #include "tools.h"
 #include "lz77.h"
 #include "u8.h"
 #include "config.h"
+#include "patch.h"
+#include "codes/codes.h"
+#include "codes/patchcode.h"
+#include "nand.h"
+#include "background.h"
 
-#define DIRENT_T_FILE 0
-#define DIRENT_T_DIR 1
-
-#define DEFAULT_FIFO_SIZE	(256*1024)
 #define Vector guVector
+#define DEFAULT_FIFO_SIZE	(256*1024)
 
 void *xfb[2] = { NULL, NULL};
-static u32 *xfb2 = NULL;
-GXRModeObj *rmode;
+u32 *xfb2 = NULL;
+GXRModeObj *rmode = NULL;
+u8 Video_Mode;
 Mtx GXmodelView2D;
 int whichfb = 0;
 void *gp_fifo = NULL;
+
+void*	dolchunkoffset[64];			//TODO: variable size
+u32		dolchunksize[64];			//TODO: variable size
+u32		dolchunkcount;
+
+void _unstub_start();
 
 // Prevent IOS36 loading at startup
 s32 __IOS_LoadStartupIOS()
 {
 	return 0;
+}
+
+static void power_cb() 
+{
+	Power_Flag = true;
+}
+
+static void reset_cb() 
+{
+	Reset_Flag = true;
 }
 
 typedef void (*entrypoint) (void);
@@ -75,13 +90,93 @@ typedef struct _dirent
 	int type;
 } dirent_t;
 
-void videoInit_()
+bool file_exists(const char * filename)
+{
+	FILE *ftest = fopen(filename, "r");
+	if (ftest)
+	{
+		fclose(ftest);
+		return true;
+	}
+	return false;
+}
+
+char *get_banner_app_name(u64 titleid)
+{
+	s32 cfd;
+    s32 ret;
+	u32 num;
+	dirent_t *list;
+    char contentpath[ISFS_MAXPATH];
+    char path[ISFS_MAXPATH];
+	int i;
+    int length;
+    u32 cnt = 0;
+	char *out;
+	u8 *buffer = allocate_memory(800);
+	   
+	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+    ret = getdir(contentpath, &list, &num);
+    if (ret < 0)
+	{
+		printf("Reading folder of the title failed\n");
+		free(buffer);
+		return NULL;
+	}
+	
+	u8 imet[4] = {0x49, 0x4D, 0x45, 0x54};
+	for(cnt=0; cnt < num; cnt++)
+    {        
+        if(strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
+        {
+			memset(buffer, 0x00, 800);
+            sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
+  
+            cfd = ISFS_Open(path, ISFS_OPEN_READ);
+            if (cfd < 0)
+			{
+	    	    printf("ISFS_OPEN for %s failed %d\n", path, cfd);
+				continue;
+			}
+			
+            ret = ISFS_Read(cfd, buffer, 800);
+	        if (ret < 0)
+	        {
+	    	    printf("ISFS_Read for %s failed %d\n", path, ret);
+		        ISFS_Close(cfd);
+				continue;
+	        }
+
+            ISFS_Close(cfd);	
+              
+			if(memcmp((buffer+0x80), imet, 4) == 0)
+			{
+				//printf("FOUND IT!\n");	
+				printf("BANNER APP: %s",list[cnt].name);
+				out = list[cnt].name;
+				//sleep(3);
+				free(buffer);
+				free(list);
+				
+				return out;
+			}
+			    
+        }
+    }
+	
+	free(buffer);
+	free(list);
+	
+	return NULL;
+
+}
+
+
+void videoInit()
 {
 	VIDEO_Init();
 	rmode = VIDEO_GetPreferredMode(0);
-   xfb2 = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	//xfb[0] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	//xfb[1] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	xfb2 = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
 	VIDEO_Configure(rmode);
 	VIDEO_SetNextFramebuffer(xfb2);
 	VIDEO_SetBlack(FALSE);
@@ -89,17 +184,25 @@ void videoInit_()
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
  	
-    int x = 24, y = 32, w, h;
-    w = rmode->fbWidth - (32);
-    h = rmode->xfbHeight - (48);
+    int x = 32, y = 212, w, h;
+    w = rmode->fbWidth - 64;
+    h = rmode->xfbHeight - 212 - 32;
 
 	CON_InitEx(rmode, x, y, w, h);
+	
+	// Set console text color
+	printf("\x1b[%u;%um", 37, false);
+	printf("\x1b[%u;%um", 40, false);
+	
+//    int x = 24, y = 32, w, h;
+//    w = rmode->fbWidth - (32);
+//    h = rmode->xfbHeight - (48);
+//	CON_InitEx(rmode, x, y+240, w, h-240);
 
 	VIDEO_ClearFrameBuffer(rmode, xfb2, COLOR_BLACK);
-	printf("video Init\n");
-	sleep(5);
 }
-void videoInit()
+
+void GX_videoInit__()
 {
 	f32 yscale;
 	u32 xfbHeight;
@@ -184,83 +287,116 @@ void videoInit()
 	GX_SetCullMode(GX_CULL_NONE);
 }
 
-void gfx_drawtile(f32 xpos, f32 ypos, u16 width, u16 height, u8 data[], float degrees, float scaleX, f32 scaleY, u8 alpha, f32 frame,f32 maxframe )
-//---------------------------------------------------------------------------------
+u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp, u64 titleid)
 {
-	GXTexObj texObj;
-	f32 s1= frame/maxframe;
-	f32 s2= (frame+1)/maxframe;
-	f32 t1=0;
-	f32 t2=1;
-	
-	GX_InitTexObj(&texObj, data, width*maxframe,height, GX_TF_RGBA8,GX_CLAMP, GX_CLAMP,GX_FALSE);
-	GX_InitTexObjLOD(&texObj, GX_NEAR, GX_NEAR, 0.0f, 0.0f, 0.0f, 0, 0, GX_ANISO_1);
-	GX_LoadTexObj(&texObj, GX_TEXMAP0);
+	u8 *app;
+	u8 *banner;
+	u8 *decompressed_banner;
+	u8 *tpl;
+	u8 *compressed;
+	u32 size_out = 0;
+    char path[ISFS_MAXPATH];
+    char u8path[ISFS_MAXPATH];
+    char tplpath[ISFS_MAXPATH];
+    char *bannerapp;
 
-	GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
-  	GX_SetVtxDesc (GX_VA_TEX0, GX_DIRECT);
+	int banner_size;
+	int tpl_size = 0;
+	u32 decompressed_banner_size;
+	u32 titlehex = TITLE_LOWER(titleid);
+                //unsigned short heighttemp2 = 0;
+               // unsigned short widthtemp2 = 0;
+	sprintf(tplpath, "sd:/%08x/extracted/arc/anim/blyt/timg/VCPic.tpl", TITLE_LOWER(titleid));
 
-	Mtx m,m1,m2, mv;
-	width *=.5;
-	height*=.5;
-	guMtxIdentity (m1);
-	guMtxScaleApply(m1,m1,scaleX,scaleY,1.0);
-	Vector axis =(Vector) {0 , 0, 1 };
-	guMtxRotAxisDeg (m2, &axis, degrees);
-	guMtxConcat(m2,m1,m);
-	guMtxTransApply(m,m, xpos+width,ypos+height,0);
-	guMtxConcat (GXmodelView2D, m, mv);
-	GX_LoadPosMtxImm (mv, GX_PNMTX0);
-	GX_Begin(GX_QUADS, GX_VTXFMT0,4);
-  	GX_Position3f32(-width, -height,  0);
-  	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(s1, t1);
-  
-  	GX_Position3f32(width, -height,  0);
- 	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(s2, t1);
-  
-  	GX_Position3f32(width, height,  0);
-	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(s2, t2);
-  
-  	GX_Position3f32(-width, height,  0);
-	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(s1, t2);
-	GX_End();
-	GX_LoadPosMtxImm (GXmodelView2D, GX_PNMTX0);
 
-	GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
-  	GX_SetVtxDesc (GX_VA_TEX0, GX_NONE);
-}
-
-void gfx_printf(u8 *font,s32 x,s32 y,u8 alpha, char *fmt, ...)
-//---------------------------------------------------------------------------------
-{
-	int i;
-	char buf[1024];
-	int len;
-
-	va_list ap;
-	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-  
-	for(i=0;i<len; i++, x+=10)
+	switch (*(char *)&titlehex)
 	{
-		if(( buf[i] < 33 ) || ( buf[i] > 126 )){
-			continue;
-		}
-
-		gfx_drawtile( x, y, 10, 24, font, 0, 1.0f, 1.0f, alpha, buf[i]-33, 96 );
+		case 'W':
+		sprintf(tplpath, "sd:/%08x/extracted/arc/anim/blyt/timg/banner_logo_n.tpl", TITLE_LOWER(titleid));
+		break;
 	}
-}
+
+	printf("TPL: %s\n", tplpath);
+	//printf("GAME: %s\n", get_name(titleid));
+	
+/*
+4a snes - 07
+46 nes - 00
+50 tgfx - 09
+4d genesis - 00
+*/
+	
+	sprintf(u8path, "sd:/%08x", TITLE_LOWER(titleid));
+	mkdir(u8path, 0777);
+
+    	u8 *buffer = allocate_memory(8);
+   	s32 ret;
+
+	//printf("TPL Target: %s\n", tplpath);
+	//printf("loading tpl data\n");
+
+	if (!file_exists(tplpath))
+	{
+		bannerapp = get_banner_app_name(titleid);
+		sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bannerapp);
+		printf("PATH: %s\n", path);
+		printf("TPL DOESNT EXIST\n");
+				ret = read_file(path, &compressed, &size_out);
+				if (ret < 0)
+				{
+					printf("Reading file failed\n");
+					free(buffer);
+	
+					return ret;
+				}
+		do_U8_archive(compressed+0x640, u8path);
+		switch (*(char *)&titlehex)
+		{
+			case 'W':
+			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+			break;
+			
+			default:
+			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+			break;
+		}
+		//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+		banner_size = read_sd(u8path, &banner);
+		decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
+		sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
+		do_U8_archive(decompressed_banner, u8path);
+		//sleep(1);
+
+	}
+	if (file_exists(tplpath))
+	{
+
+	tpl_size = read_sd(tplpath, &tpl);		
+	TPLFile tplfile;
+        
+    ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
+    if(ret < 0) {
+        free(tpl);
+        tpl = NULL;
+        return;
+    }
+    ret = TPL_GetTexture(&tplfile,0,TexObj);
+    if(ret < 0) {
+        free(tpl);
+        tpl = NULL;
+        return;
+    }
+    TPL_CloseTPLFile(&tplfile);
+	free(tpl);
+	printf("DONE!\n");
+	}
+return tpl_size;		
+	
+}		
 
 void gfx_draw_image(f32 xpos, f32 ypos, u16 width, u16 height, GXTexObj texObj, float degrees, float scaleX, f32 scaleY, u8 alpha )
 //---------------------------------------------------------------------------------
 {	
-	//GXTexObj texObj;
-	//GX_InitTexObj(&texObj, data, width,height, GX_TF_RGBA8,GX_CLAMP, GX_CLAMP,GX_FALSE);
 	GX_LoadTexObj(&texObj, GX_TEXMAP0);
 
 	GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
@@ -314,7 +450,6 @@ void gfx_render_direct()
  	VIDEO_Flush();
  	VIDEO_WaitVSync();
 }
-
 
 s32 __FileCmp(const void *a, const void *b)
 {
@@ -386,7 +521,8 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	u32 maxnum;
 	u32 tempnum = 0;
 	u32 number;
-	dirent_t *list;
+	dirent_t *list = NULL;
+	dirent_t *templist;
     char path[ISFS_MAXPATH];
     sprintf(path, "/title/00010001");
     ret = getdir(path, &list, &maxnum);
@@ -399,6 +535,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	char **temp = allocate_memory(maxnum*4);
 	if (temp == NULL)
 	{
+		free(list);
 		printf("Out of memory\n");
 		return -1;
 	}
@@ -409,8 +546,16 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0) // Ignore channels starting with H (Channels) and U (Loadstructor channels)
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
-			ret = ISFS_ReadDir(path, NULL, &number);	
-			if (number > 1) // 1 == tmd only
+			
+			// Dirty workaround, ISFS_ReadDir does not work properly on nand emu
+			templist = NULL;
+			ret = getdir(path, &templist, &number);	
+			if (ret >= 0 && templist != NULL)
+			{
+				free(templist);
+			}
+			
+			if (ret >= 0 && number > 1) // 1 == tmd only
 			{
 				temp[tempnum] = allocate_memory(10);
 				memset(temp[tempnum], 0x00, 10);
@@ -422,11 +567,12 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 
 	*TitleIds = temp;
 	*num = tempnum;
+	free(list);
 	return 0;
 }
 
 
-s32 check_dol(u64 titleid, char *out)
+s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 {
 	s32 cfd;
     s32 ret;
@@ -435,7 +581,6 @@ s32 check_dol(u64 titleid, char *out)
     char contentpath[ISFS_MAXPATH];
     char path[ISFS_MAXPATH];
     int cnt = 0;
-	bool found = false;
 	
 	u8 LZ77_0x10 = 0x10;
     u8 LZ77_0x11 = 0x11;
@@ -443,12 +588,18 @@ s32 check_dol(u64 titleid, char *out)
 	u8 *compressed;
 	u32 size_out = 0;
 	u32 decomp_size = 0;
+	
+	
 
     u8 *buffer = allocate_memory(8);
+	if (buffer == NULL)
+	{
+		printf("Out of memory\n");
+		return -1;
+	}
 	
-    u8 check1[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
-    u8 check2[1] = {0x00};
-
+    u8 check[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+ 
     sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
     ret = getdir(contentpath, &list, &num);
     if (ret < 0)
@@ -459,8 +610,8 @@ s32 check_dol(u64 titleid, char *out)
 	}
 	for(cnt=0; cnt < num; cnt++)
     {        
-        if(strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
-        {
+        if ((strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) && (strtol(list[cnt].name, NULL, 16) != bootcontent))
+        {			
 			memset(buffer, 0x00, 8);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
@@ -495,6 +646,8 @@ s32 check_dol(u64 titleid, char *out)
 				if (ret < 0)
 				{
 					printf("Reading file failed\n");
+					free(buffer);
+					free(list);
 					return ret;
 				}
 				printf("read file\n");
@@ -509,17 +662,14 @@ s32 check_dol(u64 titleid, char *out)
 				memcpy(buffer, decompressed, 8);
  			}
 			
-	        ret = memcmp(buffer, check1, 6);
+	        ret = memcmp(buffer, check, 6);
             if(ret == 0)
             {
-                ret = memcmp(&buffer[6], check2, 1);
-                if(ret != 0)
-                {
-                    printf("Found DOL --> %s\n", list[cnt].name);
-                    sprintf(out, "%s", path);
-					found = true;
-                    break;
-               } 
+				printf("Found DOL --> %s\n", list[cnt].name);
+				sprintf(out, "%s", path);
+				free(buffer);
+				free(list);
+				return 0;
             } 
         }
     }
@@ -527,27 +677,44 @@ s32 check_dol(u64 titleid, char *out)
 	free(buffer);
 	free(list);
 	
-	if (!found)
-	{
-		printf("No .dol found\n");
-		return -1;
-	}
-	return 0;
+	printf("No .dol found\n");
+	return -1;
 }
 
-void patch_dol(u8 *buffer, s32 size)
+void patch_dol(bool bootcontent)
 {
 	s32 ret;
+	int i;
+	
+	for (i=0;i < dolchunkcount;i++)
+	{		
+		if (!bootcontent)
+		{
+			if (languageoption != -1)
+			{
+				ret = patch_language(dolchunkoffset[i], dolchunksize[i], languageoption);
+			}
+			
+			if (videopatchoption != 0)
+			{
+				search_video_modes(dolchunkoffset[i], dolchunksize[i]);
+				patch_video_modes_to(rmode, videopatchoption);
+			}
+		}
 
-	if (languageoption != -1)
-	{
-		ret = patch_language(buffer, size, languageoption);
+		if (hooktypeoption != 0)
+		{
+			// Before this can be done, the codehandler needs to be in memory, and the code to patch needs to be in the right pace
+			dochannelhooks(dolchunkoffset[i], dolchunksize[i]);	
+		}
 	}
 }  
 
 
 u32 load_dol(u8 *buffer)
 {
+	dolchunkcount = 0;
+	
 	dolheader *dolfile;
 	dolfile = (dolheader *)buffer;
 	
@@ -570,6 +737,10 @@ u32 load_dol(u8 *buffer)
 		if(dolfile->text_pos[i] < sizeof(dolheader))
 			continue;
 	    
+		dolchunkoffset[dolchunkcount] = (void *)dolfile->text_start[i];
+		dolchunksize[dolchunkcount] = dolfile->text_size[i];
+		dolchunkcount++;
+		
 		doloffset = (u32)buffer + dolfile->text_pos[i];
 		memoffset = dolfile->text_start[i];
 		restsize = dolfile->text_size[i];
@@ -604,6 +775,10 @@ u32 load_dol(u8 *buffer)
 		if(dolfile->data_pos[i] < sizeof(dolheader))
 			continue;
 		
+		dolchunkoffset[dolchunkcount] = (void *)dolfile->data_start[i];
+		dolchunksize[dolchunkcount] = dolfile->data_size[i];
+		dolchunkcount++;
+
 		doloffset = (u32)buffer + dolfile->data_pos[i];
 		memoffset = dolfile->data_start[i];
 		restsize = dolfile->data_size[i];
@@ -636,92 +811,133 @@ u32 load_dol(u8 *buffer)
 }
 
 
-u32 loadAndRelocate(u64 titleid)
+s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool skip_bootcontent)
 {
-	u8 *contentBuf;
-	u32 contentSize;
-	u32 entry_point;
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
 	int ret;
+	u16 bootindex;
+	u16 bootcontent;
+	bool bootcontent_loaded;
 	
-	char contentPath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32); 
-	printf("Searching for main DOL...\n");
-	ret = check_dol(titleid, contentPath);
+	u8 *tmdBuffer = NULL;
+	u32 tmdSize;
+	tmd_content *p_cr;
+
+	u32 pressed;
+	u32 pressedGC;
+
+	printf("Reading TMD...");
+
+	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+	ret = read_file(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
-		printf("Searching for main.dol failed\n");
-		return 0;
+		printf("Reading TMD failed\n");
+		return ret;
+	}
+	printf("done\n");
+	
+	bootindex = ((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer))->boot_index;
+	p_cr = TMD_CONTENTS(((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer)));
+	bootcontent = p_cr[bootindex].cid;
+
+	free(tmdBuffer);
+
+	// Write bootcontent to filepath and overwrite it in case another .dol is found
+	sprintf(filepath, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bootcontent);
+
+	if (skip_bootcontent)
+	{
+		bootcontent_loaded = false;
+		printf("Searching for main DOL...\n");
+			
+		ret = check_dol(titleid, filepath, bootcontent);
+		if (ret < 0)
+		{
+			printf("Searching for main.dol failed\n");
+			printf("Press A to load nand loader instead...\n");
+			waitforbuttonpress(&pressed, &pressedGC);
+			if (pressed != WPAD_BUTTON_A && pressedGC != PAD_BUTTON_A)
+			{
+				printf("Other button pressed\n");
+				return ret;
+			}
+			bootcontent_loaded = true;
+		}
+	} else
+	{
+		bootcontent_loaded = true;
 	}
 	
-    printf("Loading DOL: %s\n", contentPath);
+    printf("Loading DOL: %s\n", filepath);
 	
-	ret = read_file(contentPath, &contentBuf, &contentSize);
+	ret = read_file(filepath, contentBuf, contentSize);
 	if (ret < 0)
 	{
 		printf("Reading .dol failed\n");
-		return 0;
+		return ret;
 	}
 	
-	if (isLZ77compressed(contentBuf))
+	if (isLZ77compressed(*contentBuf))
 	{
 		u8 *decompressed;
-		ret = decompressLZ77content(contentBuf, contentSize, &decompressed, &contentSize);
+		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize);
 		if (ret < 0)
 		{
 			printf("Decompression failed\n");
-			free(contentBuf);
+			free(*contentBuf);
 			return ret;
 		}
-		free(contentBuf);
-		contentBuf = decompressed;
+		free(*contentBuf);
+		*contentBuf = decompressed;
+	}	
+	
+	if (bootcontent_loaded)
+	{
+		return 1;
+	} else
+	{
+		return 0;
 	}
-
-	patch_dol(contentBuf, contentSize);
-	entry_point = load_dol(contentBuf);
-	free(contentBuf);
-
-	return entry_point;
 }
 
 
-void setVideoMode(u64 titleid, int title)
+void determineVideoMode(u64 titleid)
 {
-    char Region = (char)((u32)titleid % 256);
-	
-	GXRModeObj *vmode = NULL;
-	// Get vmode and Video_Mode for system settings first
-	u32 tvmode = CONF_GetVideo();
-
-	// Attention: This returns &TVNtsc480Prog for all progressive video modes
-    vmode = VIDEO_GetPreferredMode(0);
-	
-	u8 Video_Mode;
-
-	switch (tvmode) 
+	if (videooption == 0)
 	{
-		case CONF_VIDEO_PAL:
-			if (CONF_GetEuRGB60() > 0) 
-			{
-				Video_Mode = VI_EURGB60;
-			}
-			else 
-			{
-				Video_Mode = VI_PAL;
-			}
-			break;
+		char Region = (char)((u32)titleid % 256);
+		
+		// Get rmode and Video_Mode for system settings first
+		u32 tvmode = CONF_GetVideo();
 
-		case CONF_VIDEO_MPAL:
-			Video_Mode = VI_MPAL;
-			break;
+		// Attention: This returns &TVNtsc480Prog for all progressive video modes
+		rmode = VIDEO_GetPreferredMode(0);
+		
+		switch (tvmode) 
+		{
+			case CONF_VIDEO_PAL:
+				if (CONF_GetEuRGB60() > 0) 
+				{
+					Video_Mode = VI_EURGB60;
+				}
+				else 
+				{
+					Video_Mode = VI_PAL;
+				}
+				break;
 
-		case CONF_VIDEO_NTSC:
-		default:
-			Video_Mode = VI_NTSC;
-			
-	}
+			case CONF_VIDEO_MPAL:
+				Video_Mode = VI_MPAL;
+				break;
 
-	// Overwrite vmode and Video_Mode when disc region video mode is selected and Wii region doesn't match disc region
-	if (title > 0)
-	{
+			case CONF_VIDEO_NTSC:
+			default:
+				Video_Mode = VI_NTSC;
+				
+		}
+
+		// Overwrite rmode and Video_Mode when Default Video Mode is selected and Wii region doesn't match the channel region
 		u32 low;
 		low = TITLE_LOWER(titleid);
 		if (*(char *)&low != 'W') // Don't overwrite video mode for WiiWare
@@ -739,11 +955,11 @@ void setVideoMode(u64 titleid, int title)
 
 						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
 						{
-							vmode = &TVNtsc480Prog; // This seems to be correct!
+							rmode = &TVNtsc480Prog; // This seems to be correct!
 						}
 						else
 						{
-							vmode = &TVEurgb60Hz480IntDf;
+							rmode = &TVEurgb60Hz480IntDf;
 						}				
 					}
 					break;
@@ -754,29 +970,69 @@ void setVideoMode(u64 titleid, int title)
 					if (CONF_GetVideo() != CONF_VIDEO_NTSC)
 					{
 						Video_Mode = VI_NTSC;
-
 						if (CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable())
 						{
-							vmode = &TVNtsc480Prog;
+							rmode = &TVNtsc480Prog;
 						}
 						else
 						{
-							vmode = &TVNtsc480IntDf;
+							rmode = &TVNtsc480IntDf;
 						}				
 					}
 			}
 		}
+	} else
+	{
+		if (videooption == 1)
+		{
+			rmode = &TVNtsc480IntDf;
+		} else
+		if (videooption == 2)
+		{
+			rmode = &TVNtsc480Prog;
+		} else
+		if (videooption == 3)
+		{
+			rmode = &TVEurgb60Hz480IntDf;
+		} else
+		if (videooption == 4)
+		{
+			rmode = &TVEurgb60Hz480Prog;
+		} else
+		if (videooption == 5)
+		{
+			rmode = &TVPal528IntDf;
+		} else
+		if (videooption == 6)
+		{
+			rmode = &TVMpal480IntDf;
+		} else
+		if (videooption == 7)
+		{
+			rmode = &TVMpal480Prog;
+		}
+		Video_Mode = (rmode->viTVMode) >> 2;
 	}
+}
+
+void setVideoMode()
+{	
 	*(u32 *)0x800000CC = Video_Mode;
-    DCFlushRange((void*)0x800000CC, sizeof(u32));
- 
-    VIDEO_Configure(vmode);
-    VIDEO_SetNextFramebuffer(xfb);
-    VIDEO_SetBlack(FALSE);
-    VIDEO_Flush();
-    VIDEO_WaitVSync();
- 
-    if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
+	DCFlushRange((void*)0x800000CC, sizeof(u32));
+	
+	// Overwrite all progressive video modes as they are broken in libogc
+	if (videomode_interlaced(rmode) == 0)
+	{
+		rmode = &TVNtsc480Prog;
+	}
+
+	VIDEO_Configure(rmode);
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	
+	if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
 bool check_text(char *s) 
@@ -820,7 +1076,7 @@ char *read_name_from_banner_app(u64 titleid)
 	u8 imet[4] = {0x49, 0x4D, 0x45, 0x54};
 	for(cnt=0; cnt < num; cnt++)
     {        
-        if(strstr(list[cnt].name, ".app") != NULL) 
+        if (strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
         {
 			memset(buffer, 0x00, 800);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
@@ -950,6 +1206,9 @@ char *read_name_from_banner_bin(u64 titleid)
 char *get_name(u64 titleid)
 {
 	char *temp;
+	u32 low;
+	low = TITLE_LOWER(titleid);
+
 	temp = read_name_from_banner_bin(titleid);
 	if (temp == NULL || !check_text(temp))
 	{
@@ -958,8 +1217,6 @@ char *get_name(u64 titleid)
 	
 	if (temp != NULL)
 	{
-		u32 low;
-		low = TITLE_LOWER(titleid);
 		if (*(char *)&low == 'W')
 		{
 			return temp;
@@ -992,6 +1249,14 @@ char *get_name(u64 titleid)
 				
 		}
 	}
+	
+	if (temp == NULL)
+	{
+		temp = malloc(6);
+		memset(temp, 0, 6);
+		memcpy(temp, (char *)(&low), 4);
+	}
+	
 	return temp;
 }
 
@@ -1000,14 +1265,24 @@ void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
 	int ret;
-	u16 requested_ios;
+	u32 requested_ios;
+	u8 *dolbuffer;
+	u32 dolsize;
+	bool bootcontentloaded;
 	
-	u32 entryPoint = loadAndRelocate(titleid);
-	if (entryPoint == 0)
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
+	if (ret < 0)
 	{
 		printf(".dol loading failed\n");
 		return;
 	}
+	bootcontentloaded = (ret == 1);
+
+	determineVideoMode(titleid);
+	
+	entryPoint = load_dol(dolbuffer);
+	
+	free(dolbuffer);
 
 	printf(".dol loaded\n");
 
@@ -1023,12 +1298,15 @@ void bootTitle(u64 titleid)
 	// Set the clock
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
-	printf("Setting bus speed\n");
-	*(u32*)0x800000F8 = 0x0E7BE2C0;
-	printf("Setting cpu speed\n");
-	*(u32*)0x800000FC = 0x2B73A840;
+	if (entryPoint != 0x3400)
+	{
+		printf("Setting bus speed\n");
+		*(u32*)0x800000F8 = 0x0E7BE2C0;
+		printf("Setting cpu speed\n");
+		*(u32*)0x800000FC = 0x2B73A840;
 
-	DCFlushRange((void*)0x800000F8, 0xFF);
+		DCFlushRange((void*)0x800000F8, 0xFF);
+	}
 	
 	// Remove 002 error
 	printf("Fake IOS Version(%u)\n", requested_ios);
@@ -1045,23 +1323,78 @@ void bootTitle(u64 titleid)
 	{
 		printf("ES_SetUID failed %d", ret);
 		return;
-	}
+	}	
 	printf("ES_SetUID successful\n");
+	
+	
+	if (hooktypeoption != 0)
+	{
+		do_codes(titleid);
+	}
+	
+	patch_dol(bootcontentloaded);
+
 	printf("Loading complete, booting...\n");
 
-	sleep(5);
-	
 	appJump = (entrypoint)entryPoint;
-	
-	setVideoMode(titleid, videooption);
+
+	//sleep(5);
+
+	setVideoMode();
 	
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
 
-	appJump();	
+	if (entryPoint != 0x3400)
+	{
+		if (hooktypeoption != 0)
+		{
+			__asm__(
+						"lis %r3, entryPoint@h\n"
+						"ori %r3, %r3, entryPoint@l\n"
+						"lwz %r3, 0(%r3)\n"
+						"mtlr %r3\n"
+						"lis %r3, 0x8000\n"
+						"ori %r3, %r3, 0x18A8\n"
+						"mtctr %r3\n"
+						"bctr\n"
+						);
+						
+		} else
+		{
+			appJump();	
+		}
+	} else
+	{
+		if (hooktypeoption != 0)
+		{
+			__asm__(
+						"lis %r3, returnpoint@h\n"
+						"ori %r3, %r3, returnpoint@l\n"
+						"mtlr %r3\n"
+						"lis %r3, 0x8000\n"
+						"ori %r3, %r3, 0x18A8\n"
+						"mtctr %r3\n"
+						"bctr\n"
+						"returnpoint:\n"
+						"bl DCDisable\n"
+						"bl ICDisable\n"
+						"li %r3, 0\n"
+						"mtsrr1 %r3\n"
+						"lis %r4, entryPoint@h\n"
+						"ori %r4,%r4,entryPoint@l\n"
+						"lwz %r4, 0(%r4)\n"
+						"mtsrr0 %r4\n"
+						"rfi\n"
+						);
+		} else
+		{
+			_unstub_start();
+		}
+	}
 }
 
-#define menuitems 4
+#define menuitems 8
 
 void show_menu()
 {
@@ -1069,15 +1402,22 @@ void show_menu()
 	u32 pressed;
 	u32 pressedGC;
 	int ret;
+	GXTexObj TexObj;
+	unsigned short heighttemp = 0;
+	unsigned short widthtemp = 0;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 2, 11 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
 
-	u32 optionselected[menuitems] = { 0 , 0, videooption, languageoption+1};
+	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption };
 
 	char *start[1] = { "Start" };
-	char *regionoptions[2] = { "Wii region", "Channel region" };
+	char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
+	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
+	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
+	char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
+	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 
 	u64 TitleIds[255];
 	char *TitleNames[255];
@@ -1101,7 +1441,7 @@ void show_menu()
 	printf("...");
 	
 	optioncount[1] = Titlecount;
-	char **optiontext[menuitems] = { start, TitleNames, regionoptions, languageoptions };
+	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions, hooktypeoptions, ocarinaoptions, debuggeroptions };
 
 	for (i = 0; i < Titlecount; i++)
 	{
@@ -1122,7 +1462,7 @@ void show_menu()
 			set_highlight(selection == i);
 			if (optiontext[i][optionselected[i]] == NULL)
             {
-                printf("???\n");
+				printf("???\n");
             } else
 			{
 				printf("%s\n", optiontext[i][optionselected[i]]);
@@ -1164,6 +1504,126 @@ void show_menu()
 			{
 				optionselected[selection] = optioncount[selection]-1;
 			}
+			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[selection]]);
+			//printf("Drawing TPD\n");
+			//sleep(5);
+			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
+			//sleep(1);
+			gfx_render_direct();
+		}
+
+		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
+		{	
+			if (optionselected[selection] < optioncount[selection]-1)
+			{
+				optionselected[selection]++;
+			} else
+			{
+				optionselected[selection] = 0;
+			}
+			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[selection]]);
+			//printf("Drawing TPD\n");
+			//sleep(5);
+			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
+			//sleep(1);
+			gfx_render_direct();
+		}
+
+		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
+		{
+			if (selection == 0)
+			{
+				videooption = optionselected[2];
+				videopatchoption = optionselected[3];
+				languageoption = optionselected[4]-1;				
+				hooktypeoption = optionselected[5];				
+				ocarinaoption = optionselected[6];				
+				debuggeroption = optionselected[7];				
+				
+				bootTitle(TitleIds[optionselected[1]]);
+				printf("Press any button to continue\n");
+				waitforbuttonpress(NULL, NULL);
+			}
+		}
+		
+		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		{
+			printf("Exiting...\n");
+			return;
+		}	
+	}	
+}
+
+#define nandmenuitems 1
+
+void show_nand_menu()
+{
+	int i;
+	u32 pressed;
+	u32 pressedGC;
+	int ret;
+
+	int selection = 0;
+	u32 optioncount[nandmenuitems] = { 3 };
+	u32 optionselected[nandmenuitems] = { 0 };
+
+	char *nandoptions[3] = { "Use real NAND", "Use SD-NAND", "Use USB-NAND" };
+	char **optiontext[nandmenuitems] = { nandoptions };
+
+	while (true)
+	{
+		printf("\x1b[J");
+		
+		printheadline();
+		printf("\n");
+		
+		for (i = 0; i < nandmenuitems; i++)
+		{
+			set_highlight(selection == i);
+			if (optiontext[i][optionselected[i]] == NULL)
+            {
+                printf("???\n");
+            } else
+			{
+				printf("%s\n", optiontext[i][optionselected[i]]);
+            }
+			set_highlight(false);
+		}
+		printf("\n");
+		
+		waitforbuttonpress(&pressed, &pressedGC);
+		
+		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
+		{
+			if (selection > 0)
+			{
+				selection--;
+			} else
+			{
+				selection = nandmenuitems-1;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+		{
+			if (selection < nandmenuitems-1)
+			{
+				selection++;
+			} else
+			{
+				selection = 0;
+			}
+		}
+
+		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
+		{	
+			if (optionselected[selection] > 0)
+			{
+				optionselected[selection]--;
+			} else
+			{
+				optionselected[selection] = optioncount[selection]-1;
+			}
 		}
 
 		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
@@ -1181,12 +1641,22 @@ void show_menu()
 		{
 			if (selection == 0)
 			{
-				videooption = optionselected[2];
-				languageoption = optionselected[3]-1;				
+				ret = 0;
+				if (optionselected[0] == 1)
+				{
+					ret = Enable_Emu(EMU_SD);
+				} else
+				if (optionselected[0] == 2)
+				{
+					ret = Enable_Emu(EMU_USB);
+				}
+				if (ret < 0)
+				{
+					return;
+				}
 				
-				bootTitle(TitleIds[optionselected[1]]);
-				printf("Press any button to contine\n");
-				waitforbuttonpress(NULL, NULL);
+				show_menu();
+				return;
 			}
 		}
 		
@@ -1196,120 +1666,49 @@ void show_menu()
 			return;
 		}	
 	}	
-
 }
-
-
-
-u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp)
-{
-u8 *app;
-u8 *banner;
-u8 *decompressed_banner;
-u8 *tpl;
-
-int app_size;
-int banner_size;
-int tpl_size;
-u32 decompressed_banner_size;
-
-app_size = read_sd("sd:/00000000.app", &app);
-do_U8_archive(app+0x640, "sd:/u8");
-banner_size = read_sd("sd:/u8/meta/banner.bin", &banner);
-decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
-do_U8_archive(decompressed_banner, "sd:/u8/extracted");
-
-printf("\n\nTPL Stuff...");
-sleep(5);
-/*
-//tpl_size = read_sd("sd:/u8/extracted/timg/BannerImage.tpl", &tpl);
-
- FILE *tplfp = fopen("sd:/u8/extracted/timg/BannerImage.tpl","rb");
-
-
-                //unsigned short heighttemp = 0;
-                //unsigned short widthtemp = 0;
-
-             //   fseek(tplfp , 0x14, SEEK_SET);
-             //   fread((void*)&heighttemp,1,2,tplfp);
-             //   fread((void*)&widthtemp,1,2,tplfp);
-                fseek (tplfp , 0 , SEEK_END);
-                tpl_size = ftell (tplfp);
-                rewind (tplfp);
-				fread(tpl, 1, tpl_size, tplfp);
-				fclose(tplfp);
-	*/
-tpl_size = read_sd(	"sd:/u8/extracted/timg/BannerImage.tpl", &tpl);		
-
-
-TPLFile tplfile;
-        int ret;
-		printf("Open memory\n");
-		sleep(2);
-
-        ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
-        if(ret < 0) {
-            free(tpl);
-            tpl = NULL;
-            return;
-        }
-		printf("Get texture\n");
-		sleep(2);
-        ret = TPL_GetTexture(&tplfile,0,TexObj);
-        if(ret < 0) {
-            free(tpl);
-            tpl = NULL;
-            return;
-        }
-		printf("close\n");
-		sleep(2);
-        TPL_CloseTPLFile(&tplfile);
-printf("done\n");		
-return tpl_size;		
-		
-}		
-
-
 
 
 int main(int argc, char* argv[])
 {
-	videoInit_();
 	videoInit();
+	printf("Video init\n");
+	sleep(2);
+	GX_videoInit__();
+	
+	printf("GX video init\n");
+	sleep(2);
+	
+	DrawBackground(rmode);
+	
 	Set_Config_to_Defaults();
 
 	printheadline();
 
 	IOS_ReloadIOS(249);
-	fatInitDefault();
-	GXTexObj TexObj;
-	unsigned short heighttemp = 0;
-   unsigned short widthtemp = 0;
-	get_tpl_vc(&TexObj, &heighttemp, &widthtemp);
-	printf("Drawing TPD\n");
-	sleep(5);
-	gfx_draw_image(100, 100, 256, 192, TexObj, 0, 1, 1, 0xff);
-	gfx_render_direct();
-	sleep(5);
-	gfx_draw_image(200, 200, 256, 192, TexObj, 0, 1, 1, 0x00);
-	gfx_render_direct();
-	sleep(5);
+
+	Power_Flag = false;
+	Reset_Flag = false;
+	SYS_SetPowerCallback (power_cb);
+    SYS_SetResetCallback (reset_cb);
+
 	PAD_Init();
 	WPAD_Init();
-	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
+	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);	
 
-/*	if ((IOS_GetVersion() != 249) || IOS_GetRevision() < 14)
-	{
-		printf("You need at least revision 14\n");
-		sleep(15);
-		exit(1);
-	}
-*/
+fatInitDefault();				
+
 	ISFS_Initialize();
 
 	Set_Config_to_Defaults();
 	
-	show_menu();
+	if (IOS_GetVersion() == 249 && IOS_GetRevision() == 14)
+	{
+		show_nand_menu();
+	} else
+	{
+		show_menu();
+	}
 	
 	printf("Press any button\n");
 	waitforbuttonpress(NULL, NULL);
