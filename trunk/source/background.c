@@ -3,12 +3,12 @@
 #include "libpng/pngu/pngu.h"
 #include "background_png.h"
 
-extern u32 *xfb2;
+extern u32 *xfb;
 
 
 void Video_DrawPng(IMGCTX ctx, PNGUPROP imgProp, u16 x, u16 y, GXRModeObj *vmode)
 {
-	PNGU_DECODE_TO_COORDS_YCbYCr(ctx, x, y, imgProp.imgWidth, imgProp.imgHeight, vmode->fbWidth, vmode->xfbHeight, xfb2);
+	PNGU_DECODE_TO_COORDS_YCbYCr(ctx, x, y, imgProp.imgWidth, imgProp.imgHeight, vmode->fbWidth, vmode->xfbHeight, xfb);
 }
 
 
