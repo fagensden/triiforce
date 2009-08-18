@@ -23,7 +23,7 @@
 #include "tools.h"
 
 #define TRIIFORCE_MAJOR 0
-#define TRIIFORCE_MINOR 3
+#define TRIIFORCE_MINOR 42
 
 void printheadline()
 {
@@ -56,6 +56,21 @@ void *allocate_memory(u32 size)
 	return memalign(32, (size+31)&(~31) );
 }
 
+void Verify_Flags()
+{
+	if (Power_Flag)
+	{
+		WPAD_Shutdown();
+		STM_ShutdownToStandby();
+	}
+	if (Reset_Flag)
+	{
+		WPAD_Shutdown();
+		STM_RebootSystem();
+	}
+}
+
+
 void waitforbuttonpress(u32 *out, u32 *outGC)
 {
 	u32 pressed = 0;
@@ -63,6 +78,8 @@ void waitforbuttonpress(u32 *out, u32 *outGC)
 
 	while (true)
 	{
+		Verify_Flags();
+		
 		WPAD_ScanPads();
 		pressed = WPAD_ButtonsDown(0);
 
@@ -145,7 +162,7 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	return 0;
 }
 
-s32 identify(u64 titleid, u16 *ios)
+s32 identify(u64 titleid, u32 *ios)
 {
 	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
 	u8 *tmdBuffer = NULL;
@@ -234,63 +251,4 @@ s32 identify(u64 titleid, u16 *ios)
 	free(certBuffer);
 	return 0;
 }
-
-s32 search_offset(u8 *file, u32 size, u8 *value, u32 valuesize, u32 offset, u32 *outoffset)
-{
-    int i = 0;
-	for (i = offset; i < size; i++)
-	{
-        if (memcmp(file + i, value, valuesize) == 0) 
-		{
-            *outoffset = i;
-			return 0;
-        }
-	}
-	return -1;
-}
-
-s32 parser(u8 *file, u32 size, u8 *value, u32 valuesize, u8 *patch, u32 patchsize, u32 shift)
-{  
-	u32 cnt = 0;
-	u32 maxsize = size - valuesize;
-	if (patchsize + shift > valuesize)
-	{
-		maxsize = size - patchsize - shift;
-	}
-
-	u32 offset = 0;
-	while (search_offset(file, maxsize-offset, value, valuesize, offset, &offset) >= 0)
-	{
-		memcpy(file + offset + shift, patch, patchsize);
-		offset = offset + shift + patchsize;
-		cnt++;
-	}
-	
-	if (cnt > 0)
-	{
-		return cnt;
-	} else
-	{
-		return -1;
-	}
-}
-
-s32 patch_language(u8 *file, u32 size, u32 languageoption)
-{
-	u8 languagesearchpattern1[12] = { 0x7C, 0x60, 0x07, 0x75, 0x40, 0x82, 0x00, 0x10, 0x38, 0x00, 0x00, 0x00 };
-	u8 languagesearchpattern2[4]  = { 0x88, 0x61, 0x00, 0x08 };
-	u8 languagepatch[4] = { 0x38, 0x60, 0x00, languageoption };
-
-	u32 offset;
-	if (search_offset(file, size - 16, languagesearchpattern1, 12, 0, &offset) >= 0)
-	{
-		if (search_offset(file, size -4 -offset, languagesearchpattern2, 4, offset, &offset) >= 0)
-		{
-			memcpy(file + offset, languagepatch, 4);
-			return 0;
-		}	
-	}
-	return -1;
-}
-
 
