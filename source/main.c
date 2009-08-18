@@ -38,6 +38,10 @@ u32 *xfb = NULL;
 GXRModeObj *rmode = NULL;
 u8 Video_Mode;
 
+void*	dolchunkoffset[64];			//TODO: variable size
+u32		dolchunksize[64];			//TODO: variable size
+u32		dolchunkcount;
+
 void _unstub_start();
 
 // Prevent IOS36 loading at startup
@@ -339,33 +343,40 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	return -1;
 }
 
-void patch_dol(u8 *buffer, s32 size, bool bootcontent)
+void patch_dol(bool bootcontent)
 {
 	s32 ret;
-
-	if (!bootcontent)
-	{
-		if (languageoption != -1)
+	int i;
+	
+	for (i=0;i < dolchunkcount;i++)
+	{		
+		if (!bootcontent)
 		{
-			ret = patch_language(buffer, size, languageoption);
+			if (languageoption != -1)
+			{
+				ret = patch_language(dolchunkoffset[i], dolchunksize[i], languageoption);
+			}
+			
+			if (videopatchoption != 0)
+			{
+				search_video_modes(dolchunkoffset[i], dolchunksize[i]);
+				patch_video_modes_to(rmode, videopatchoption);
+			}
 		}
-		
-		if (videopatchoption != 0)
-		{
-			search_video_modes(buffer, size);
-			patch_video_modes_to(rmode, videopatchoption);
-		}
-	}
 
-	if (hooktypeoption != 0)
-	{
-		dochannelhooks(buffer, size);	
+		if (hooktypeoption != 0)
+		{
+			// Before this can be done, the codehandler needs to be in memory, and the code to patch needs to be in the right pace
+			dochannelhooks(dolchunkoffset[i], dolchunksize[i]);	
+		}
 	}
 }  
 
 
 u32 load_dol(u8 *buffer)
 {
+	dolchunkcount = 0;
+	
 	dolheader *dolfile;
 	dolfile = (dolheader *)buffer;
 	
@@ -388,6 +399,10 @@ u32 load_dol(u8 *buffer)
 		if(dolfile->text_pos[i] < sizeof(dolheader))
 			continue;
 	    
+		dolchunkoffset[dolchunkcount] = (void *)dolfile->text_start[i];
+		dolchunksize[dolchunkcount] = dolfile->text_size[i];
+		dolchunkcount++;
+		
 		doloffset = (u32)buffer + dolfile->text_pos[i];
 		memoffset = dolfile->text_start[i];
 		restsize = dolfile->text_size[i];
@@ -422,6 +437,10 @@ u32 load_dol(u8 *buffer)
 		if(dolfile->data_pos[i] < sizeof(dolheader))
 			continue;
 		
+		dolchunkoffset[dolchunkcount] = (void *)dolfile->data_start[i];
+		dolchunksize[dolchunkcount] = dolfile->data_size[i];
+		dolchunkcount++;
+
 		doloffset = (u32)buffer + dolfile->data_pos[i];
 		memoffset = dolfile->data_start[i];
 		restsize = dolfile->data_size[i];
@@ -719,7 +738,7 @@ char *read_name_from_banner_app(u64 titleid)
 	u8 imet[4] = {0x49, 0x4D, 0x45, 0x54};
 	for(cnt=0; cnt < num; cnt++)
     {        
-        if(strstr(list[cnt].name, ".app") != NULL) 
+        if (strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
         {
 			memset(buffer, 0x00, 800);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
@@ -911,6 +930,7 @@ void bootTitle(u64 titleid)
 	u32 requested_ios;
 	u8 *dolbuffer;
 	u32 dolsize;
+	bool bootcontentloaded;
 	
 	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
 	if (ret < 0)
@@ -918,10 +938,9 @@ void bootTitle(u64 titleid)
 		printf(".dol loading failed\n");
 		return;
 	}
+	bootcontentloaded = (ret == 1);
 
 	determineVideoMode(titleid);
-	
-	patch_dol(dolbuffer, dolsize, (ret == 1));
 	
 	entryPoint = load_dol(dolbuffer);
 	
@@ -969,23 +988,20 @@ void bootTitle(u64 titleid)
 	}	
 	printf("ES_SetUID successful\n");
 	
-	//*(u32*)0xCD00643C = 0x00000000;	// 32Mhz on Bus
-	//DCFlushRange((void*)0xCD00643C, 4);
 	
-	// For testing, this should be in patch_dol
 	if (hooktypeoption != 0)
 	{
 		do_codes(titleid);
 	}
-	//dochannelhooks((void*)0x8132ff80, 0x380000);
-	//DCFlushRange((void*)0x8132ff80, 0x380000);
+	
+	patch_dol(bootcontentloaded);
 
 	printf("Loading complete, booting...\n");
 
-	//sleep(5);
-	
 	appJump = (entrypoint)entryPoint;
-	sleep(5);
+
+	//sleep(5);
+
 	setVideoMode();
 	
 	WPAD_Shutdown();
@@ -1040,7 +1056,7 @@ void bootTitle(u64 titleid)
 	}
 }
 
-#define menuitems 5
+#define menuitems 8
 
 void show_menu()
 {
@@ -1050,14 +1066,17 @@ void show_menu()
 	int ret;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
 
-	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1};
+	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption };
 
 	char *start[1] = { "Start" };
 	char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
 	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
+	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
+	char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
+	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 
 	u64 TitleIds[255];
 	char *TitleNames[255];
@@ -1081,7 +1100,7 @@ void show_menu()
 	printf("...");
 	
 	optioncount[1] = Titlecount;
-	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions };
+	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions, hooktypeoptions, ocarinaoptions, debuggeroptions };
 
 	for (i = 0; i < Titlecount; i++)
 	{
@@ -1164,6 +1183,9 @@ void show_menu()
 				videooption = optionselected[2];
 				videopatchoption = optionselected[3];
 				languageoption = optionselected[4]-1;				
+				hooktypeoption = optionselected[5];				
+				ocarinaoption = optionselected[6];				
+				debuggeroption = optionselected[7];				
 				
 				bootTitle(TitleIds[optionselected[1]]);
 				printf("Press any button to continue\n");
