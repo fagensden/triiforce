@@ -294,6 +294,7 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	u8 *decompressed_banner;
 	u8 *tpl;
 	u8 *compressed;
+	u8 *decompressed;
 	u32 size_out = 0;
     char path[ISFS_MAXPATH];
     char u8path[ISFS_MAXPATH];
@@ -306,13 +307,13 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	u32 titlehex = TITLE_LOWER(titleid);
                 //unsigned short heighttemp2 = 0;
                // unsigned short widthtemp2 = 0;
-	sprintf(tplpath, "sd:/%08x/extracted/arc/anim/blyt/timg/VCPic.tpl", TITLE_LOWER(titleid));
+	sprintf(tplpath, "VCPic.tpl");
 
 
 	switch (*(char *)&titlehex)
 	{
 		case 'W':
-		sprintf(tplpath, "sd:/%08x/extracted/arc/anim/blyt/timg/banner_logo_n.tpl", TITLE_LOWER(titleid));
+		sprintf(tplpath, "banner_logo_n.tpl");
 		break;
 	}
 
@@ -326,7 +327,7 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 4d genesis - 00
 */
 	
-	sprintf(u8path, "sd:/%08x", TITLE_LOWER(titleid));
+	sprintf(u8path, "/tmp/%08x", TITLE_LOWER(titleid));
 	mkdir(u8path, 0777);
 
     	u8 *buffer = allocate_memory(8);
@@ -335,8 +336,7 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	//printf("TPL Target: %s\n", tplpath);
 	//printf("loading tpl data\n");
 
-	if (!file_exists(tplpath))
-	{
+
 		bannerapp = get_banner_app_name(titleid);
 		sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bannerapp);
 		printf("PATH: %s\n", path);
@@ -349,8 +349,9 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	
 					return ret;
 				}
-		do_U8_archive(compressed+0x640, u8path);
-		switch (*(char *)&titlehex)
+		//do_U8_archive(compressed+0x640, u8path);
+		banner_size = do_file_U8_archive(compressed+0x640, "banner.bin", &banner);
+	/*	switch (*(char *)&titlehex)
 		{
 			case 'W':
 			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
@@ -359,19 +360,19 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 			default:
 			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
 			break;
-		}
+		}*/
 		//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
-		banner_size = read_sd(u8path, &banner);
+		//banner_size = read_sd(u8path, &banner);
 		decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
-		sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
-		do_U8_archive(decompressed_banner, u8path);
+		//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
+		//do_U8_archive(decompressed_banner, u8path);
+		tpl_size = do_file_U8_archive(decompressed_banner, tplpath, &tpl);
+		
 		//sleep(1);
 
-	}
-	if (file_exists(tplpath))
-	{
+	
 
-	tpl_size = read_sd(tplpath, &tpl);		
+	//tpl_size = read_sd(tplpath, &tpl);		
 	TPLFile tplfile;
         
     ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
@@ -388,8 +389,11 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
     }
     TPL_CloseTPLFile(&tplfile);
 	free(tpl);
+	free(banner);
+	free(compressed);
+	free(decompressed_banner);
 	printf("DONE!\n");
-	}
+	
 return tpl_size;		
 	
 }		
@@ -1695,8 +1699,7 @@ int main(int argc, char* argv[])
 	PAD_Init();
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);	
-
-fatInitDefault();				
+				
 
 	ISFS_Initialize();
 

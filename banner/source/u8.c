@@ -22,6 +22,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <gccore.h>
+#include <ogc/isfs.h>
  
 #include "tools.h"
 #include "u8.h"
@@ -62,6 +63,15 @@ void write_file(void* data, size_t size, char* name)
 	out = fopen(name, "wb");
 	fwrite(data, 1, size, out);
 	fclose(out);	
+}
+
+void write_file_fs(void* data, size_t size, char* name)
+{
+	s32 out;
+ 
+	out = ISFS_Open(name, ISFS_OPEN_WRITE);
+	ISFS_Write(out, data, size);
+	ISFS_Close(out);
 }
  
 int read_sd(char *path, u8 **buffer)
@@ -164,5 +174,92 @@ void do_U8_archive(u8 *buffer, char *path)
       dir_index--;
     }
 	}
+}
+
+u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *size_out)
+{
+  U8_archive_header header;
+  U8_node root_node;
+	u32 tag;
+	u32 num_nodes;
+	U8_node* nodes;
+	u8* string_table;
+	size_t rest_size;
+	unsigned int i;
+	u32 data_offset;
+	u16 dir_stack[16];
+	int dir_index = 0;
+	//mkdir(path, 0777);
+	
+//	fread(&header, 1, sizeof header, fp);
+	memcpy(&header, buffer, sizeof(header));
+	tag = be32((u8*) &header.tag);
+	if (tag != 0x55AA382D) {
+	  printf("No U8 tag\n");
+	}
+    // printf("Header\n");
+	 //sleep(2);
+	//fread(&root_node, 1, sizeof(root_node), fp);
+	memcpy(&root_node, buffer + sizeof(header), sizeof(root_node));
+	num_nodes = be32((u8*) &root_node.size) - 1;
+	//printf("Number of files: %d\n", num_nodes);
+    //sleep(5);
+	nodes = allocate_memory(sizeof(U8_node) * (num_nodes));
+	//fread(nodes, 1, num_nodes * sizeof(U8_node), fp);
+	memcpy(nodes, buffer+ sizeof(header)+ sizeof(root_node), num_nodes * sizeof(U8_node));
+	//printf("Allocate mem & memcpy\n");
+    //sleep(5);
+	data_offset = be32((u8*) &header.data_offset);
+	rest_size = data_offset - sizeof(header) - (num_nodes+1)*sizeof(U8_node);
+ 	//printf("REST SIZE\n");
+	string_table = allocate_memory(rest_size);
+	//fread(string_table, 1, rest_size, fp);
+	memcpy(string_table, buffer+ sizeof(header)+ sizeof(root_node)+(num_nodes * sizeof(U8_node)), rest_size);
+ 	//printf("ENTERING LOOP\n");
+	for (i = 0; i < num_nodes; i++) 
+	{
+		U8_node* node = &nodes[i];   
+		u16 name_offset = be16((u8*)&node->name_offset);
+		char* name = (char*) &string_table[name_offset];
+	
+		if(strcmp(name, filename) == 0)
+		{
+   
+			u16 type = be16((u8*)&node->type);
+
+			u32 my_data_offset = be32((u8*)&node->data_offset);
+			u32 size = be32((u8*)&node->size);
+			u8* file_data;
+
+				// Normal file
+ 
+				if (type != 0x0000) {
+					printf("Unknown type\n");
+				}
+				//printf("file - creating\n");
+				//sleep(1);
+				// fseek(fp, my_data_offset, SEEK_SET);
+				file_data = allocate_memory(size);
+				//fread(file_data, 1, size, fp);
+				memcpy(file_data, buffer + my_data_offset, size);
+				//write_file_fs(file_data, size, sd);
+				*data_out = allocate_memory(size);
+				*data_out = file_data;
+				
+				free(file_data);
+				return size;
+				//printf("%*s %s (%d bytes)\n", dir_index, "", sd, size);
+				//sleep(1);
+			
+ 
+			while (dir_stack[dir_index] == i+2 && dir_index > 0) 
+			{
+				//printf("chdir\n");
+				//chdir("..");
+				dir_index--;
+			}
+	
+		}
+	}	
 }
 
