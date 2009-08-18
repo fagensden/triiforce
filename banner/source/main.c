@@ -328,7 +328,7 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 */
 	
 	sprintf(u8path, "/tmp/%08x", TITLE_LOWER(titleid));
-	mkdir(u8path, 0777);
+
 
     	u8 *buffer = allocate_memory(8);
    	s32 ret;
@@ -1508,7 +1508,7 @@ void show_menu()
 			{
 				optionselected[selection] = optioncount[selection]-1;
 			}
-			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[selection]]);
+			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
 			//printf("Drawing TPD\n");
 			//sleep(5);
 			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
@@ -1525,7 +1525,7 @@ void show_menu()
 			{
 				optionselected[selection] = 0;
 			}
-			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[selection]]);
+			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
 			//printf("Drawing TPD\n");
 			//sleep(5);
 			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
