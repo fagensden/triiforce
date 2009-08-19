@@ -42,6 +42,8 @@ void*	dolchunkoffset[64];			//TODO: variable size
 u32		dolchunksize[64];			//TODO: variable size
 u32		dolchunkcount;
 
+bool exitworks;
+
 void _unstub_start();
 
 // Prevent IOS36 loading at startup
@@ -1001,6 +1003,7 @@ void bootTitle(u64 titleid)
 	
 	if (hooktypeoption != 0)
 	{
+		exitworks = false;
 		do_codes(titleid);
 	}
 	
@@ -1301,10 +1304,12 @@ void show_nand_menu()
 				ret = 0;
 				if (optionselected[0] == 1)
 				{
+					exitworks = false;
 					ret = Enable_Emu(EMU_SD);
 				} else
 				if (optionselected[0] == 2)
 				{
+					exitworks = false;
 					ret = Enable_Emu(EMU_USB);
 				}
 				if (ret < 0)
@@ -1328,6 +1333,7 @@ void show_nand_menu()
 
 int main(int argc, char* argv[])
 {
+	exitworks = (*(u32*)0x80001800);
 	videoInit();
 	
 	DrawBackground(rmode);
@@ -1362,5 +1368,9 @@ int main(int argc, char* argv[])
 	printf("Press any button\n");
 	waitforbuttonpress(NULL, NULL);
 	
+	if (!exitworks)
+	{
+		SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
+	}
 	return 0;
 }

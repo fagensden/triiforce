@@ -285,46 +285,43 @@ void load_handler()
 
 void do_codes(u64 titleid)
 {
-	if (hooktypeoption != 0x00)
+	s32 ret;
+	char gameidbuffer[8];
+	memset(gameidbuffer, 0, 8);
+	gameidbuffer[0] = (titleid & 0xff000000) >> 24;
+	gameidbuffer[1] = (titleid & 0x00ff0000) >> 16;
+	gameidbuffer[2] = (titleid & 0x0000ff00) >> 8;
+	gameidbuffer[3] = titleid & 0x000000ff;
+
+	if (debuggeroption == 0x00)
+		codelist = (u8 *) 0x800022A8;
+	else
+		codelist = (u8 *) 0x800028E0;
+
+	u8 *tempcodelist = NULL;
+	u32 tempcodelistsize;
+
+	if (ocarinaoption != 0)
 	{
-		s32 ret;
-		char gameidbuffer[8];
-		memset(gameidbuffer, 0, 8);
-		gameidbuffer[0] = (titleid & 0xff000000) >> 24;
-		gameidbuffer[1] = (titleid & 0x00ff0000) >> 16;
-		gameidbuffer[2] = (titleid & 0x0000ff00) >> 8;
-		gameidbuffer[3] = titleid & 0x000000ff;
-
-		if (debuggeroption == 0x00)
-			codelist = (u8 *) 0x800022A8;
-		else
-			codelist = (u8 *) 0x800028E0;
-
-		u8 *tempcodelist = NULL;
-		u32 tempcodelistsize;
-
-		if (ocarinaoption != 0)
-		{
-			memset(codelist, 0, (u32)codelistend - (u32)codelist);
-			
-			ret = load_codes(gameidbuffer, (u32)codelistend - (u32)codelist, &tempcodelist, &tempcodelistsize);
-			if (ret >= 0)
-			{
-				memcpy(codelist, tempcodelist, tempcodelistsize);
-				free(tempcodelist);
-
-				printf("Codes found. Applying\n");
-				//write_font(185, 346, "Codes found. Applying");
-			} else
-			{
-				
-			}
-			sleep(3);
-		}
+		memset(codelist, 0, (u32)codelistend - (u32)codelist);
 		
-		load_handler();
-		memcpy((void *)0x80001800, gameidbuffer, 8);
-		DCFlushRange((void*)0x80000000, 0x3f00);
+		ret = load_codes(gameidbuffer, (u32)codelistend - (u32)codelist, &tempcodelist, &tempcodelistsize);
+		if (ret >= 0)
+		{
+			memcpy(codelist, tempcodelist, tempcodelistsize);
+			free(tempcodelist);
+
+			printf("Codes found. Applying\n");
+			//write_font(185, 346, "Codes found. Applying");
+		} else
+		{
+			
+		}
+		sleep(3);
 	}
+		
+	load_handler();
+	memcpy((void *)0x80001800, gameidbuffer, 8);
+	DCFlushRange((void*)0x80000000, 0x3f00);
 }
 
