@@ -218,7 +218,6 @@ char *get_banner_app_name(u64 titleid)
 			if(memcmp((buffer+0x80), imet, 4) == 0)
 			{
 				//printf("FOUND IT!\n");	
-				printf("BANNER APP: %s",list[cnt].name);
 				out = list[cnt].name;
 				//sleep(3);
 				free(buffer);
@@ -357,7 +356,6 @@ void GX_videoInit__()
 
 s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp, u64 titleid)
 {
-
 	u32 size_out = 0;
     char path[ISFS_MAXPATH];
     char tplpath[ISFS_MAXPATH];
@@ -367,19 +365,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	u32 tpl_size = 0;
 	u32 decompressed_banner_size;
 	u32 titlehex = TITLE_LOWER(titleid);
-                //unsigned short heighttemp2 = 0;
-               // unsigned short widthtemp2 = 0;
-	sprintf(tplpath, "VCPic.tpl");
 
-
-	switch (*(char *)&titlehex)
-	{
-		case 'W':
-		sprintf(tplpath, "banner_logo_n.tpl");
-		break;
-	}
-
-	printf("TPL: %s\n", tplpath);
 	//printf("GAME: %s\n", get_name(titleid));
 	
 	/*
@@ -394,91 +380,112 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	//printf("TPL Target: %s\n", tplpath);
 	//printf("loading tpl data\n");
 
-
 	bannerapp = get_banner_app_name(titleid);
-	if(bannerapp != NULL)
-	{
-		u8 *banner;
-		u8 *decompressed_banner;
-		u8 *tpl;
-		u8 *compressed;
-		sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bannerapp);
-		printf("PATH: %s\n", path);
-		ret = read_file(path, &compressed, &size_out);
-		if (ret < 0)
-		{
-			printf("Reading file failed\n");
-			free(compressed);
-	
-			return ret;
-		}
-		//do_U8_archive(compressed+0x640, u8path);
-		ret = do_file_U8_archive(compressed+0x640, "banner.bin", &banner, &banner_size);
-		if (ret < 0)
-		{
-			printf("Reading banner failed\n");
-	
-			return ret;
-		}
-		/*	switch (*(char *)&titlehex)
-		{
-			case 'W':
-			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
-			break;
-			
-			default:
-			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
-			break;
-		}*/
-		//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
-		//banner_size = read_sd(u8path, &banner);
-		decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
-		//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
-		//do_U8_archive(decompressed_banner, u8path);
-		ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
-		if (ret < 0)
-		{
-			printf("Reading tpl failed\n");
-	
-			return ret;
-		}
-		
-		//sleep(1);
-
-
-		memcpy((void*)&heighttemp,tpl + 0x14, 2);
-		memcpy((void*)&widthtemp,tpl + 0x14 + 2, 2);
-
-
-		//tpl_size = read_sd(tplpath, &tpl);		
-		TPLFile tplfile;
-        
-		ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
-		if(ret < 0) 
-		{
-			free(tpl);
-			tpl = NULL;
-			return -1;
-		}
-		ret = TPL_GetTexture(&tplfile,0,TexObj);
-		if(ret < 0) 
-		{
-			free(tpl);
-			tpl = NULL;
-			return -2;
-		}
-		TPL_CloseTPLFile(&tplfile);
-		free(tpl);
-		free(banner);
-		free(compressed);
-		free(decompressed_banner);
-
-	} else
+	if(bannerapp == NULL)
 	{
 		printf("Banner not found !\n");
 		TexObj = NULL;
 		return -1;
 	}	
+	//printf("BANNER APP: %s\n",bannerapp);
+
+	u8 *banner;
+	u8 *decompressed_banner;
+	u8 *tpl;
+	u8 *compressed;
+	
+	sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bannerapp);
+	printf("PATH: %s\n", path);
+	
+	ret = read_file(path, &compressed, &size_out);
+	if (ret < 0)
+	{
+		printf("Reading file failed\n");
+		return ret;
+	}
+	//do_U8_archive(compressed+0x640, u8path);
+	ret = do_file_U8_archive(compressed+0x640, "banner.bin", &banner, &banner_size);
+	if (ret < 0)
+	{
+		printf("Reading banner failed\n");
+		free(compressed);
+		return ret;
+	}
+	
+	/*	switch (*(char *)&titlehex)
+	{
+		case 'W':
+		sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+		break;
+			
+		default:
+		sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+		break;
+	}*/
+	//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
+	//banner_size = read_sd(u8path, &banner);
+	ret = decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
+	if (ret < 0)
+	{
+		free(compressed);
+		return ret;
+	}
+	//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
+	//do_U8_archive(decompressed_banner, u8path);
+
+	switch (*(char *)&titlehex)
+	{
+		case 'W':
+			sprintf(tplpath, "banner_logo_n.tpl");
+		break;
+			
+		default:
+			sprintf(tplpath, "VCPic.tpl");			
+		break;
+	}
+
+	printf("TPL: %s\n", tplpath);
+
+	ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
+	if (ret < 0)
+	{
+		printf("Reading tpl failed\n");
+		free(compressed);
+		return ret;
+	}
+		
+	//sleep(1);
+
+	memcpy((void*)&heighttemp,tpl + 0x14, 2);
+	memcpy((void*)&widthtemp,tpl + 0x14 + 2, 2);
+
+	//tpl_size = read_sd(tplpath, &tpl);		
+	TPLFile tplfile;
+        
+	ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
+	if(ret < 0) 
+	{
+		free(tpl);
+		tpl = NULL;
+		free(compressed);
+		return -1;
+	}
+
+	ret = TPL_GetTexture(&tplfile,0,TexObj);
+	if(ret < 0) 
+	{
+		free(tpl);
+		tpl = NULL;
+		free(compressed);
+		return -2;
+	}
+	TPL_CloseTPLFile(&tplfile);
+	
+	free(tpl);
+	free(banner);
+	free(compressed);
+	free(decompressed_banner);
+
 	printf("DONE!\n");
 	
 	//return tpl_size;		
@@ -1484,6 +1491,21 @@ void show_menu()
 
 	while (true)
 	{
+		if (lastbanner != optionselected[1])
+		{
+			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
+			if (ret < 0)
+			{
+				waitforbuttonpress(NULL, NULL);
+			}
+			//printf("Drawing TPD\n");
+			//sleep(5);
+			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+			//sleep(1);
+			gfx_render_direct();
+			lastbanner = optionselected[1];
+		}
+
 		printf("\x1b[J");
 		
 		printheadline();
@@ -1503,21 +1525,6 @@ void show_menu()
 		}
 		printf("\n");
 		
-		if (lastbanner != optionselected[1])
-		{
-			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			if(ret < 0)
-			{
-				//printf("Drawing TPD\n");
-				//sleep(5);
-				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-				//sleep(1);
-				gfx_render_direct();
-			}
-			lastbanner = optionselected[1];
-		}
-
-
 		waitforbuttonpress(&pressed, &pressedGC);
 		
 		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
