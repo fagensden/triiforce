@@ -347,6 +347,7 @@ void patch_dol(bool bootcontent)
 {
 	s32 ret;
 	int i;
+	bool hookpatched = false;
 	
 	for (i=0;i < dolchunkcount;i++)
 	{		
@@ -367,8 +368,17 @@ void patch_dol(bool bootcontent)
 		if (hooktypeoption != 0)
 		{
 			// Before this can be done, the codehandler needs to be in memory, and the code to patch needs to be in the right pace
-			dochannelhooks(dolchunkoffset[i], dolchunksize[i]);	
+			if (dochannelhooks(dolchunkoffset[i], dolchunksize[i]))
+			{
+				hookpatched = true;
+			}			
 		}
+	}
+	if (!hookpatched)
+	{
+		printf("Error: Could not patch the hook\n");
+		printf("Ocarina and debugger won't work\n");
+		sleep(5);
 	}
 }  
 

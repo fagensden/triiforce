@@ -270,12 +270,12 @@ void load_handler()
 				//}
 				break;
 			case 0x09:
-				memcpy((void*)0x8000119C,wpadbuttonsdownhooks,12);
-				memcpy((void*)0x80001198,wpadbuttonsdownhooks+3,4);
+				//memcpy((void*)0x8000119C,wpadbuttonsdownhooks,12);
+				//memcpy((void*)0x80001198,wpadbuttonsdownhooks+3,4);
 				break;
 			case 0x0A:
-				memcpy((void*)0x8000119C,wpadbuttonsdown2hooks,12);
-				memcpy((void*)0x80001198,wpadbuttonsdown2hooks+3,4);
+				//memcpy((void*)0x8000119C,wpadbuttonsdown2hooks,12);
+				//memcpy((void*)0x80001198,wpadbuttonsdown2hooks+3,4);
 				break;
 		}
 		DCFlushRange((void*)0x80001198,16);
@@ -324,9 +324,6 @@ void do_codes(u64 titleid)
 		
 		load_handler();
 		memcpy((void *)0x80001800, gameidbuffer, 8);
-		DCFlushRange((void *)0x80001800, 8);
-		
-		DCFlushRange((void *)codelist, (u32)codelistend - (u32)codelist);
 		DCFlushRange((void*)0x80000000, 0x3f00);
 	}
 }
