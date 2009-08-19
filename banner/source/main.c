@@ -38,12 +38,13 @@
 #define Vector guVector
 #define DEFAULT_FIFO_SIZE	(256*1024)
 
-//void *xfb[2] = { NULL, NULL};
-u32 *xfb = NULL;
+void *xfb[2] = { NULL, NULL};
+int whichfb = 0;
+
+//u32 *xfb = NULL;
 GXRModeObj *rmode = NULL;
 u8 Video_Mode;
 Mtx GXmodelView2D;
-int whichfb = 0;
 void *gp_fifo = NULL;
 
 void*	dolchunkoffset[64];			//TODO: variable size
@@ -241,9 +242,14 @@ void videoInit()
 {
 	VIDEO_Init();
 	rmode = VIDEO_GetPreferredMode(0);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+
+	xfb[0] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	xfb[1] = (u32 *)MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	VIDEO_ClearFrameBuffer (rmode, xfb[0], COLOR_BLACK);
+	VIDEO_ClearFrameBuffer (rmode, xfb[1], COLOR_BLACK);
+
 	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetNextFramebuffer(xfb[whichfb]);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
@@ -264,7 +270,7 @@ void videoInit()
 //    h = rmode->xfbHeight - (48);
 //	CON_InitEx(rmode, x, y+240, w, h-240);
 
-	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
+	VIDEO_ClearFrameBuffer(rmode, xfb[whichfb], COLOR_BLACK);
 }
 
 void GX_videoInit__()
@@ -548,10 +554,8 @@ void gfx_render_direct()
 	whichfb ^= 1;		// flip framebuffer
 	GX_SetZMode(GX_TRUE, GX_LEQUAL, GX_TRUE);
 	GX_SetColorUpdate(GX_TRUE);
-	//GX_CopyDisp(xfb[whichfb],GX_TRUE);
-	GX_CopyDisp(xfb,GX_TRUE);
-	//VIDEO_SetNextFramebuffer(xfb[whichfb]);
-	VIDEO_SetNextFramebuffer(xfb);
+	GX_CopyDisp(xfb[whichfb],GX_TRUE);
+	VIDEO_SetNextFramebuffer(xfb[whichfb]);
  	VIDEO_Flush();
  	VIDEO_WaitVSync();
 }
@@ -1068,7 +1072,7 @@ void setVideoMode()
 	}
 
 	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetNextFramebuffer(xfb[0]);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
