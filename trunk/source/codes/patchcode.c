@@ -415,11 +415,12 @@ void vidolpatcher(void *addr, u32 len)
 }
 */
 //---------------------------------------------------------------------------------
-void dochannelhooks(void *addr, u32 len)
+bool dochannelhooks(void *addr, u32 len)
 //---------------------------------------------------------------------------------
 {
 	void *addr_start = addr;
 	void *addr_end = addr+len;
+	bool patched = false;
 	
 	while(addr_start < addr_end)
 	{
@@ -434,6 +435,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, viwiihooks, sizeof(viwiihooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -447,11 +449,13 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, kpadhooks, sizeof(kpadhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				
 				if(memcmp(addr_start, kpadoldhooks, sizeof(kpadoldhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -465,6 +469,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, joypadhooks, sizeof(joypadhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -478,6 +483,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, gxdrawhooks, sizeof(gxdrawhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -491,6 +497,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, gxflushhooks, sizeof(gxflushhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -504,6 +511,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, ossleepthreadhooks, sizeof(ossleepthreadhooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
 				{
@@ -518,6 +526,7 @@ void dochannelhooks(void *addr, u32 len)
 				if(memcmp(addr_start, axnextframehooks, sizeof(axnextframehooks))==0)
 				{
 					patchhook((u32)addr_start, len);
+					patched = true;
 				}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
 					*(((u32*)addr_start)+1) = 0x7FE802A6;
@@ -530,6 +539,7 @@ void dochannelhooks(void *addr, u32 len)
 				
 				//if(memcmp(addr_start, customhook, customhooksize)==0){
 				//	patchhook((u32)addr_start, len);
+				//patched = true;
 				//}
 				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
 				{
@@ -541,6 +551,7 @@ void dochannelhooks(void *addr, u32 len)
 		}
 		addr_start += 4;
 	}
+	return patched;
 }
 /*
 //---------------------------------------------------------------------------------
