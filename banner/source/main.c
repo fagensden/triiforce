@@ -272,14 +272,14 @@ void GX_videoInit__()
 	f32 yscale;
 	u32 xfbHeight;
 	Mtx perspective;
-	
+/*	
 	rmode = VIDEO_GetPreferredMode(NULL);
 
-	/*if (CONF_GetAspectRatio() == CONF_ASPECT_16_9)
+	if (CONF_GetAspectRatio() == CONF_ASPECT_16_9)
 	{
 		rmode->viWidth = 678;
 		rmode->viXOrigin = (VI_MAX_WIDTH_NTSC - 678)/2;
-	}*/
+	}
 
 	VIDEO_Configure (rmode);
 
@@ -295,7 +295,7 @@ void GX_videoInit__()
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
-
+*/
 	gp_fifo = memalign(32,DEFAULT_FIFO_SIZE);
 	memset(gp_fifo,0,DEFAULT_FIFO_SIZE);
 
@@ -364,7 +364,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	u32 banner_size;
 	u32 tpl_size = 0;
 	u32 decompressed_banner_size;
-	u32 titlehex = TITLE_LOWER(titleid);
+	//u32 titlehex = TITLE_LOWER(titleid);
 
 	//printf("GAME: %s\n", get_name(titleid));
 	
@@ -428,30 +428,32 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	if (ret < 0)
 	{
 		free(compressed);
+		free(banner);
 		return ret;
 	}
 	//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
 	//do_U8_archive(decompressed_banner, u8path);
 
-	switch (*(char *)&titlehex)
-	{
-		case 'W':
-			sprintf(tplpath, "banner_logo_n.tpl");
-		break;
-			
-		default:
-			sprintf(tplpath, "VCPic.tpl");			
-		break;
-	}
+	//printf("TPL: %s\n", tplpath);
 
-	printf("TPL: %s\n", tplpath);
-
+	sprintf(tplpath, "VCPic.tpl");
 	ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
 	if (ret < 0)
 	{
-		printf("Reading tpl failed\n");
-		free(compressed);
-		return ret;
+		sprintf(tplpath, "banner_logo_n.tpl");
+		ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
+		if (ret < 0)
+		{
+			sprintf(tplpath, "BannerImage.tpl");
+			ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
+			if (ret < 0)
+			{
+				printf("Reading tpl failed\n");
+				free(compressed);
+				free(banner);
+				return ret;
+			}
+		}
 	}
 		
 	//sleep(1);
@@ -466,8 +468,9 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	if(ret < 0) 
 	{
 		free(tpl);
-		tpl = NULL;
+		free(banner);
 		free(compressed);
+		free(decompressed_banner);
 		return -1;
 	}
 
@@ -475,8 +478,8 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	if(ret < 0) 
 	{
 		free(tpl);
-		tpl = NULL;
 		free(compressed);
+		free(decompressed_banner);
 		return -2;
 	}
 	TPL_CloseTPLFile(&tplfile);
@@ -1497,12 +1500,17 @@ void show_menu()
 			if (ret < 0)
 			{
 				waitforbuttonpress(NULL, NULL);
+			} else
+			{
+				//printf("Drawing TPD\n");
+				//sleep(5);
+				
+				//DCFlushRange(&TexObj, sizeof(TexObj));
+				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+				//sleep(1);
+				//VIDEO_WaitVSync();
+				gfx_render_direct();
 			}
-			//printf("Drawing TPD\n");
-			//sleep(5);
-			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-			//sleep(1);
-			gfx_render_direct();
 			lastbanner = optionselected[1];
 		}
 
