@@ -176,7 +176,7 @@ void do_U8_archive(u8 *buffer, char *path)
 	}
 }
 
-u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *size_out)
+u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out)
 {
   U8_archive_header header;
   U8_node root_node;
@@ -261,5 +261,6 @@ u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *size_out)
 	
 		}
 	}	
+	return 0;
 }
 

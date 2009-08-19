@@ -101,6 +101,73 @@ bool file_exists(const char * filename)
 	return false;
 }
 
+s32 __FileCmp(const void *a, const void *b)
+{
+	dirent_t *hdr1 = (dirent_t *)a;
+	dirent_t *hdr2 = (dirent_t *)b;
+	
+	if (hdr1->type == hdr2->type)
+	{
+		return strcmp(hdr1->name, hdr2->name);
+	} else
+	{
+		return 0;
+	}
+}
+
+
+
+s32 getdir(char *path, dirent_t **ent, u32 *cnt)
+{
+	s32 res;
+	u32 num = 0;
+
+	int i, j, k;
+	
+	res = ISFS_ReadDir(path, NULL, &num);
+	if(res != ISFS_OK)
+	{
+		printf("Error: could not get dir entry count! (result: %d)\n", res);
+		return -1;
+	}
+
+	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
+	char ebuf[ISFS_MAXPATH + 1];
+
+	if(nbuf == NULL)
+	{
+		printf("Error: could not allocate buffer for name list!\n");
+		return -2;
+	}
+
+	res = ISFS_ReadDir(path, nbuf, &num);
+	if(res != ISFS_OK)
+	{
+		printf("Error: could not get name list! (result: %d)\n", res);
+		return -3;
+	}
+	
+	*cnt = num;
+	
+	*ent = allocate_memory(sizeof(dirent_t) * num);
+
+	for(i = 0, k = 0; i < num; i++)
+	{	    
+		for(j = 0; nbuf[k] != 0; j++, k++)
+			ebuf[j] = nbuf[k];
+		ebuf[j] = 0;
+		k++;
+
+		strcpy((*ent)[i].name, ebuf);
+	}
+	
+	qsort(*ent, *cnt, sizeof(dirent_t), __FileCmp);
+	
+	free(nbuf);
+	return 0;
+}
+
+
 char *get_banner_app_name(u64 titleid)
 {
 	s32 cfd;
@@ -109,8 +176,7 @@ char *get_banner_app_name(u64 titleid)
 	dirent_t *list;
     char contentpath[ISFS_MAXPATH];
     char path[ISFS_MAXPATH];
-	int i;
-    int length;
+
     u32 cnt = 0;
 	char *out;
 	u8 *buffer = allocate_memory(800);
@@ -166,7 +232,7 @@ char *get_banner_app_name(u64 titleid)
 	
 	free(buffer);
 	free(list);
-	
+	out = NULL;
 	return NULL;
 
 }
@@ -291,15 +357,9 @@ void GX_videoInit__()
 
 u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp, u64 titleid)
 {
-	u8 *app;
-	u8 *banner;
-	u8 *decompressed_banner;
-	u8 *tpl;
-	u8 *compressed;
-	u8 *decompressed;
+
 	u32 size_out = 0;
     char path[ISFS_MAXPATH];
-    char u8path[ISFS_MAXPATH];
     char tplpath[ISFS_MAXPATH];
     char *bannerapp;
 
@@ -322,38 +382,39 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	printf("TPL: %s\n", tplpath);
 	//printf("GAME: %s\n", get_name(titleid));
 	
-/*
-4a snes - 07
-46 nes - 00
-50 tgfx - 09
-4d genesis - 00
-*/
+	/*
+		4a snes - 07
+		46 nes - 00
+		50 tgfx - 09
+		4d genesis - 00
+	*/
 	
-	sprintf(u8path, "/tmp/%08x", TITLE_LOWER(titleid));
-
-
-    	u8 *buffer = allocate_memory(8);
    	s32 ret;
 
 	//printf("TPL Target: %s\n", tplpath);
 	//printf("loading tpl data\n");
 
 
-		bannerapp = get_banner_app_name(titleid);
+	bannerapp = get_banner_app_name(titleid);
+	if(bannerapp != NULL)
+	{
+		u8 *banner;
+		u8 *decompressed_banner;
+		u8 *tpl;
+		u8 *compressed;
 		sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bannerapp);
 		printf("PATH: %s\n", path);
-		printf("TPL DOESNT EXIST\n");
-				ret = read_file(path, &compressed, &size_out);
-				if (ret < 0)
-				{
-					printf("Reading file failed\n");
-					free(buffer);
+		ret = read_file(path, &compressed, &size_out);
+		if (ret < 0)
+		{
+			printf("Reading file failed\n");
+			free(compressed);
 	
-					return ret;
-				}
+			return ret;
+		}
 		//do_U8_archive(compressed+0x640, u8path);
 		banner_size = do_file_U8_archive(compressed+0x640, "banner.bin", &banner);
-	/*	switch (*(char *)&titlehex)
+		/*	switch (*(char *)&titlehex)
 		{
 			case 'W':
 			sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
@@ -373,78 +434,89 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 		//sleep(1);
 
 
-    memcpy((void*)&heighttemp,tpl + 0x14, 2);
-    memcpy((void*)&widthtemp,tpl + 0x14 + 2, 2);
+		memcpy((void*)&heighttemp,tpl + 0x14, 2);
+		memcpy((void*)&widthtemp,tpl + 0x14 + 2, 2);
 
 
-	//tpl_size = read_sd(tplpath, &tpl);		
-	TPLFile tplfile;
+		//tpl_size = read_sd(tplpath, &tpl);		
+		TPLFile tplfile;
         
-    ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
-    if(ret < 0) {
-        free(tpl);
-        tpl = NULL;
-        return;
-    }
-    ret = TPL_GetTexture(&tplfile,0,TexObj);
-    if(ret < 0) {
-        free(tpl);
-        tpl = NULL;
-        return;
-    }
-    TPL_CloseTPLFile(&tplfile);
-	free(tpl);
-	free(banner);
-	free(compressed);
-	free(decompressed_banner);
+		ret = TPL_OpenTPLFromMemory(&tplfile, tpl, tpl_size);
+		if(ret < 0) 
+		{
+			free(tpl);
+			tpl = NULL;
+			return -1;
+		}
+		ret = TPL_GetTexture(&tplfile,0,TexObj);
+		if(ret < 0) 
+		{
+			free(tpl);
+			tpl = NULL;
+			return -2;
+		}
+		TPL_CloseTPLFile(&tplfile);
+		free(tpl);
+		free(banner);
+		free(compressed);
+		free(decompressed_banner);
+
+	} else
+	{
+		printf("Banner not found !\n");
+		TexObj = NULL;
+		return 0;
+	}	
 	printf("DONE!\n");
 	
-return tpl_size;		
+	return tpl_size;		
 	
 }		
 
 void gfx_draw_image(f32 xpos, f32 ypos, u16 width, u16 height, GXTexObj texObj, float degrees, float scaleX, f32 scaleY, u8 alpha )
 //---------------------------------------------------------------------------------
 {	
-	GX_LoadTexObj(&texObj, GX_TEXMAP0);
 
-	GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
-  	GX_SetVtxDesc (GX_VA_TEX0, GX_DIRECT);
+		GX_LoadTexObj(&texObj, GX_TEXMAP0);
 
-	Mtx m,m1,m2, mv;
-	width *=.5;
-	height*=.5;
-	guMtxIdentity (m1);
-	guMtxScaleApply(m1,m1,scaleX,scaleY,1.0);
-	Vector axis =(Vector) {0 , 0, 1 };
-	guMtxRotAxisDeg (m2, &axis, degrees);
-	guMtxConcat(m2,m1,m);
+		GX_SetTevOp (GX_TEVSTAGE0, GX_MODULATE);
+		GX_SetVtxDesc (GX_VA_TEX0, GX_DIRECT);
 
-	guMtxTransApply(m,m, xpos+width,ypos+height,0);
-	guMtxConcat (GXmodelView2D, m, mv);
-	GX_LoadPosMtxImm (mv, GX_PNMTX0);
+		Mtx m,m1,m2, mv;
+		width *=.5;
+		height*=.5;
+		guMtxIdentity (m1);
+		guMtxScaleApply(m1,m1,scaleX,scaleY,1.0);
+		Vector axis =(Vector) {0 , 0, 1 };
+		guMtxRotAxisDeg (m2, &axis, degrees);
+		guMtxConcat(m2,m1,m);
+
+		guMtxTransApply(m,m, xpos+width,ypos+height,0);
+		guMtxConcat (GXmodelView2D, m, mv);
+		GX_LoadPosMtxImm (mv, GX_PNMTX0);
 	
-	GX_Begin(GX_QUADS, GX_VTXFMT0,4);
-  	GX_Position3f32(-width, -height,  0);
-  	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(0, 0);
+		GX_Begin(GX_QUADS, GX_VTXFMT0,4);
+		GX_Position3f32(-width, -height,  0);
+		GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+		GX_TexCoord2f32(0, 0);
   
-  	GX_Position3f32(width, -height,  0);
- 	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(1, 0);
+		GX_Position3f32(width, -height,  0);
+		GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+		GX_TexCoord2f32(1, 0);
   
-  	GX_Position3f32(width, height,  0);
-	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(1, 1);
-  
-  	GX_Position3f32(-width, height,  0);
-	GX_Color4u8(0xFF,0xFF,0xFF,alpha);
-  	GX_TexCoord2f32(0, 1);
-	GX_End();
-	GX_LoadPosMtxImm (GXmodelView2D, GX_PNMTX0);
+		GX_Position3f32(width, height,  0);
+		GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+		GX_TexCoord2f32(1, 1);
+	
+		GX_Position3f32(-width, height,  0);
+		GX_Color4u8(0xFF,0xFF,0xFF,alpha);
+		GX_TexCoord2f32(0, 1);
+		GX_End();
+		GX_LoadPosMtxImm (GXmodelView2D, GX_PNMTX0);
 
-	GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
-  	GX_SetVtxDesc (GX_VA_TEX0, GX_NONE);
+		GX_SetTevOp (GX_TEVSTAGE0, GX_PASSCLR);
+		GX_SetVtxDesc (GX_VA_TEX0, GX_NONE);
+		
 }
 
 void gfx_render_direct()
@@ -460,70 +532,6 @@ void gfx_render_direct()
 	VIDEO_SetNextFramebuffer(xfb);
  	VIDEO_Flush();
  	VIDEO_WaitVSync();
-}
-
-s32 __FileCmp(const void *a, const void *b)
-{
-	dirent_t *hdr1 = (dirent_t *)a;
-	dirent_t *hdr2 = (dirent_t *)b;
-	
-	if (hdr1->type == hdr2->type)
-	{
-		return strcmp(hdr1->name, hdr2->name);
-	} else
-	{
-		return 0;
-	}
-}
-
-s32 getdir(char *path, dirent_t **ent, u32 *cnt)
-{
-	s32 res;
-	u32 num = 0;
-
-	int i, j, k;
-	
-	res = ISFS_ReadDir(path, NULL, &num);
-	if(res != ISFS_OK)
-	{
-		printf("Error: could not get dir entry count! (result: %d)\n", res);
-		return -1;
-	}
-
-	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
-	char ebuf[ISFS_MAXPATH + 1];
-
-	if(nbuf == NULL)
-	{
-		printf("Error: could not allocate buffer for name list!\n");
-		return -2;
-	}
-
-	res = ISFS_ReadDir(path, nbuf, &num);
-	if(res != ISFS_OK)
-	{
-		printf("Error: could not get name list! (result: %d)\n", res);
-		return -3;
-	}
-	
-	*cnt = num;
-	
-	*ent = allocate_memory(sizeof(dirent_t) * num);
-
-	for(i = 0, k = 0; i < num; i++)
-	{	    
-		for(j = 0; nbuf[k] != 0; j++, k++)
-			ebuf[j] = nbuf[k];
-		ebuf[j] = 0;
-		k++;
-
-		strcpy((*ent)[i].name, ebuf);
-	}
-	
-	qsort(*ent, *cnt, sizeof(dirent_t), __FileCmp);
-	
-	free(nbuf);
-	return 0;
 }
 
 s32 get_game_list(char ***TitleIds, u32 *num)
@@ -1515,12 +1523,15 @@ void show_menu()
 			{
 				optionselected[selection] = optioncount[selection]-1;
 			}
-			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			//printf("Drawing TPD\n");
-			//sleep(5);
-			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-			//sleep(1);
-			gfx_render_direct();
+			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
+			if(ret != 0)
+			{
+				//printf("Drawing TPD\n");
+				//sleep(5);
+				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+				//sleep(1);
+				gfx_render_direct();
+			}	
 		}
 
 		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
@@ -1532,12 +1543,15 @@ void show_menu()
 			{
 				optionselected[selection] = 0;
 			}
-			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			//printf("Drawing TPD\n");
-			//sleep(5);
-			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-			//sleep(1);
-			gfx_render_direct();
+			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
+			if(ret != 0)
+			{
+				//printf("Drawing TPD\n");
+				//sleep(5);
+				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+				//sleep(1);
+				gfx_render_direct();
+			}
 		}
 
 		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
