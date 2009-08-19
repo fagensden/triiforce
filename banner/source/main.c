@@ -370,7 +370,10 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 		
 		//sleep(1);
 
-	
+
+    memcpy((void*)&heighttemp,tpl + 0x14, 2);
+    memcpy((void*)&widthtemp,tpl + 0x14 + 2, 2);
+
 
 	//tpl_size = read_sd(tplpath, &tpl);		
 	TPLFile tplfile;
@@ -1511,7 +1514,7 @@ void show_menu()
 			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
 			//printf("Drawing TPD\n");
 			//sleep(5);
-			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
+			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
 			//sleep(1);
 			gfx_render_direct();
 		}
@@ -1528,7 +1531,7 @@ void show_menu()
 			get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
 			//printf("Drawing TPD\n");
 			//sleep(5);
-			gfx_draw_image(0,10, 128,96, TexObj, 0, 1, 1, 0xff);
+			gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
 			//sleep(1);
 			gfx_render_direct();
 		}
