@@ -118,7 +118,9 @@ s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
 	{
 		fatUnmount("fat");
 		storage_shutdown();
+		printf("Failed to open %s\n", buf);
 		printf("No %s codes found\n", text);
+		sleep(3);
 		//write_font(185, 346, "No %s codes found", text);
 		return -1;
 	}
