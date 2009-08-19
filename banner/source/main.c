@@ -355,7 +355,7 @@ void GX_videoInit__()
 	GX_SetCullMode(GX_CULL_NONE);
 }
 
-u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp, u64 titleid)
+s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *widthtemp, u64 titleid)
 {
 
 	u32 size_out = 0;
@@ -363,8 +363,8 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
     char tplpath[ISFS_MAXPATH];
     char *bannerapp;
 
-	int banner_size;
-	int tpl_size = 0;
+	u32 banner_size;
+	u32 tpl_size = 0;
 	u32 decompressed_banner_size;
 	u32 titlehex = TITLE_LOWER(titleid);
                 //unsigned short heighttemp2 = 0;
@@ -413,7 +413,13 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 			return ret;
 		}
 		//do_U8_archive(compressed+0x640, u8path);
-		banner_size = do_file_U8_archive(compressed+0x640, "banner.bin", &banner);
+		ret = do_file_U8_archive(compressed+0x640, "banner.bin", &banner, &banner_size);
+		if (ret < 0)
+		{
+			printf("Reading banner failed\n");
+	
+			return ret;
+		}
 		/*	switch (*(char *)&titlehex)
 		{
 			case 'W':
@@ -429,7 +435,13 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 		decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
 		//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
 		//do_U8_archive(decompressed_banner, u8path);
-		tpl_size = do_file_U8_archive(decompressed_banner, tplpath, &tpl);
+		ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
+		if (ret < 0)
+		{
+			printf("Reading tpl failed\n");
+	
+			return ret;
+		}
 		
 		//sleep(1);
 
@@ -465,12 +477,12 @@ u32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	{
 		printf("Banner not found !\n");
 		TexObj = NULL;
-		return 0;
+		return -1;
 	}	
 	printf("DONE!\n");
 	
-	return tpl_size;		
-	
+	//return tpl_size;		
+	return 0;
 }		
 
 void gfx_draw_image(f32 xpos, f32 ypos, u16 width, u16 height, GXTexObj texObj, float degrees, float scaleX, f32 scaleY, u8 alpha )
@@ -1424,6 +1436,7 @@ void show_menu()
 	GXTexObj TexObj;
 	unsigned short heighttemp = 0;
 	unsigned short widthtemp = 0;
+	s32 lastbanner = -1;
 
 	int selection = 0;
 	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
@@ -1490,6 +1503,21 @@ void show_menu()
 		}
 		printf("\n");
 		
+		if (lastbanner != optionselected[1])
+		{
+			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
+			if(ret < 0)
+			{
+				//printf("Drawing TPD\n");
+				//sleep(5);
+				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+				//sleep(1);
+				gfx_render_direct();
+			}
+			lastbanner = optionselected[1];
+		}
+
+
 		waitforbuttonpress(&pressed, &pressedGC);
 		
 		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
@@ -1523,15 +1551,6 @@ void show_menu()
 			{
 				optionselected[selection] = optioncount[selection]-1;
 			}
-			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			if(ret != 0)
-			{
-				//printf("Drawing TPD\n");
-				//sleep(5);
-				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-				//sleep(1);
-				gfx_render_direct();
-			}	
 		}
 
 		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
@@ -1542,15 +1561,6 @@ void show_menu()
 			} else
 			{
 				optionselected[selection] = 0;
-			}
-			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			if(ret != 0)
-			{
-				//printf("Drawing TPD\n");
-				//sleep(5);
-				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-				//sleep(1);
-				gfx_render_direct();
 			}
 		}
 

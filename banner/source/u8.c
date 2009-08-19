@@ -88,7 +88,7 @@ int read_sd(char *path, u8 **buffer)
 	fclose(fp);
 	return filesize;
 }	
- 
+ /*
 void do_U8_archive(u8 *buffer, char *path)
 {
   U8_archive_header header;
@@ -175,11 +175,11 @@ void do_U8_archive(u8 *buffer, char *path)
     }
 	}
 }
-
-u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out)
+*/
+u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *out_size)
 {
-  U8_archive_header header;
-  U8_node root_node;
+	U8_archive_header header;
+	U8_node root_node;
 	u32 tag;
 	u32 num_nodes;
 	U8_node* nodes;
@@ -233,21 +233,24 @@ u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out)
 
 				// Normal file
  
-				if (type != 0x0000) {
+				if (type != 0x0000) 
+				{
 					printf("Unknown type\n");
 				}
 				//printf("file - creating\n");
 				//sleep(1);
 				// fseek(fp, my_data_offset, SEEK_SET);
 				file_data = allocate_memory(size);
+				if (file_data == NULL)
+				{
+					return -1;
+				}
 				//fread(file_data, 1, size, fp);
 				memcpy(file_data, buffer + my_data_offset, size);
 				//write_file_fs(file_data, size, sd);
-				*data_out = allocate_memory(size);
 				*data_out = file_data;
-				
-				free(file_data);
-				return size;
+				*out_size = size;
+				return 0;
 				//printf("%*s %s (%d bytes)\n", dir_index, "", sd, size);
 				//sleep(1);
 			
@@ -261,6 +264,6 @@ u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out)
 	
 		}
 	}	
-	return 0;
+	return -1;
 }
 
