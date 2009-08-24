@@ -1,5 +1,5 @@
 /*******************************************************************************
- * config.c
+ * config.c 
  *
  * Copyright (c) 2009 The Lemon Man
  * Copyright (c) 2009 Nicksasa
