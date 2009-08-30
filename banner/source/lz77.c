@@ -199,7 +199,7 @@ int isLZ77compressed(u8 *buffer)
  
 int decompressLZ77content(u8 *buffer, u32 lenght, u8 **output, u32 *outputLen)
 {
-    int ret;
+    u32 ret;
 	switch (buffer[0])
     {
         case LZ77_0x10_FLAG:

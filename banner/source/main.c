@@ -441,7 +441,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 		}	
 		if(ret == -1)
 		{
-			decompressed_banner = banner;
+			decompressed_banner = banner+0x20;
 			decompressed_banner_size = banner_size;
 		}	
 	}
