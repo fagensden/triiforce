@@ -397,6 +397,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 
 	u8 *banner;
 	u8 *decompressed_banner;
+	bool decompressed_banner_allocated = false;
 	u8 *tpl;
 	u8 *compressed;
 	
@@ -430,7 +431,8 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	}*/
 	//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
 	//banner_size = read_sd(u8path, &banner);
-	if (strncmp((char *)(banner+0x20), "lz77", 4) == 0 && isLZ77compressed(banner+0x24))
+	
+	if (strncmp((char *)(banner+0x20), "LZ77", 4) == 0 && isLZ77compressed(banner+0x24))
 	{
 		ret = decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
 		if (ret < 0)
@@ -438,7 +440,8 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 			free(compressed);
 			free(banner);
 			return ret;
-		}	
+		}
+		decompressed_banner_allocated = true;
 	} else
 	{
 		decompressed_banner = banner+0x20;
@@ -461,7 +464,8 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 			ret = do_file_U8_archive(decompressed_banner, tplpath, &tpl, &tpl_size);
 			if (ret < 0)
 			{
-				printf("Reading tpl failed\n");
+				printf("Reading tpl failed, available files:\n");
+				print_names_in_u8(decompressed_banner);
 				free(compressed);
 				free(banner);
 				return ret;
@@ -483,7 +487,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 		free(tpl);
 		free(banner);
 		free(compressed);
-		free(decompressed_banner);
+		if (decompressed_banner_allocated) free(decompressed_banner);
 		return -1;
 	}
 
@@ -492,7 +496,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	{
 		free(tpl);
 		free(compressed);
-		free(decompressed_banner);
+		if (decompressed_banner_allocated) free(decompressed_banner);
 		return -2;
 	}
 	TPL_CloseTPLFile(&tplfile);
@@ -500,7 +504,7 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	free(tpl);
 	free(banner);
 	free(compressed);
-	free(decompressed_banner);
+	if (decompressed_banner_allocated) free(decompressed_banner);
 
 	printf("DONE!\n");
 	

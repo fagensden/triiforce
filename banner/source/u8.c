@@ -55,7 +55,7 @@ u32 be32(const u8 *p)
 	return (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
 }
 
- 
+/* 
 void write_file(void* data, size_t size, char* name)
 {
 	FILE *out;
@@ -88,6 +88,7 @@ int read_sd(char *path, u8 **buffer)
 	fclose(fp);
 	return filesize;
 }	
+*/
  /*
 void do_U8_archive(u8 *buffer, char *path)
 {
@@ -176,7 +177,8 @@ void do_U8_archive(u8 *buffer, char *path)
 	}
 }
 */
-u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *out_size)
+
+s32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *out_size)
 {
 	U8_archive_header header;
 	U8_node root_node;
@@ -187,34 +189,45 @@ u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *out_size)
 	size_t rest_size;
 	unsigned int i;
 	u32 data_offset;
-	u16 dir_stack[16];
-	int dir_index = 0;
-	//mkdir(path, 0777);
+	//u16 dir_stack[16];
+	//int dir_index = 0;
 	
-//	fread(&header, 1, sizeof header, fp);
 	memcpy(&header, buffer, sizeof(header));
 	tag = be32((u8*) &header.tag);
-	if (tag != 0x55AA382D) {
-	  printf("No U8 tag\n");
+	if (tag != 0x55AA382D) 
+	{
+		printf("No U8 tag\n");
+		return -1;
 	}
     // printf("Header\n");
-	 //sleep(2);
-	//fread(&root_node, 1, sizeof(root_node), fp);
+
 	memcpy(&root_node, buffer + sizeof(header), sizeof(root_node));
 	num_nodes = be32((u8*) &root_node.size) - 1;
-	//printf("Number of files: %d\n", num_nodes);
-    //sleep(5);
+
 	nodes = allocate_memory(sizeof(U8_node) * (num_nodes));
-	//fread(nodes, 1, num_nodes * sizeof(U8_node), fp);
+	if (nodes == NULL)
+	{
+		printf("Out of memory\n");
+		return -1;
+	}
+
 	memcpy(nodes, buffer+ sizeof(header)+ sizeof(root_node), num_nodes * sizeof(U8_node));
-	//printf("Allocate mem & memcpy\n");
-    //sleep(5);
+
 	data_offset = be32((u8*) &header.data_offset);
 	rest_size = data_offset - sizeof(header) - (num_nodes+1)*sizeof(U8_node);
+
  	//printf("REST SIZE\n");
+
 	string_table = allocate_memory(rest_size);
-	//fread(string_table, 1, rest_size, fp);
+	if (string_table == NULL)
+	{
+		printf("Out of memory\n");
+		free(nodes);
+		return -1;
+	}
+
 	memcpy(string_table, buffer+ sizeof(header)+ sizeof(root_node)+(num_nodes * sizeof(U8_node)), rest_size);
+
  	//printf("ENTERING LOOP\n");
 	for (i = 0; i < num_nodes; i++) 
 	{
@@ -222,48 +235,108 @@ u32 do_file_U8_archive(u8 *buffer, char *filename, u8 **data_out, u32 *out_size)
 		u16 name_offset = be16((u8*)&node->name_offset);
 		char* name = (char*) &string_table[name_offset];
 	
-		if(strcmp(name, filename) == 0)
-		{
-   
+		if (strcmp(name, filename) == 0)
+		{   
 			u16 type = be16((u8*)&node->type);
 
 			u32 my_data_offset = be32((u8*)&node->data_offset);
 			u32 size = be32((u8*)&node->size);
 			u8* file_data;
 
-				// Normal file
+			// Normal file
  
-				if (type != 0x0000) 
-				{
-					printf("Unknown type\n");
-				}
-				//printf("file - creating\n");
-				//sleep(1);
-				// fseek(fp, my_data_offset, SEEK_SET);
-				file_data = allocate_memory(size);
-				if (file_data == NULL)
-				{
-					return -1;
-				}
-				//fread(file_data, 1, size, fp);
-				memcpy(file_data, buffer + my_data_offset, size);
-				//write_file_fs(file_data, size, sd);
-				*data_out = file_data;
-				*out_size = size;
-				return 0;
-				//printf("%*s %s (%d bytes)\n", dir_index, "", sd, size);
-				//sleep(1);
-			
- 
-			while (dir_stack[dir_index] == i+2 && dir_index > 0) 
+			if (type != 0x0000) 
 			{
-				//printf("chdir\n");
-				//chdir("..");
-				dir_index--;
+				printf("Unknown file type\n");
 			}
-	
+			//printf("file - creating\n");
+			//sleep(1);
+			file_data = allocate_memory(size);
+			if (file_data == NULL)
+			{
+				free(nodes);
+				free(string_table);
+				return -1;
+			}
+			memcpy(file_data, buffer + my_data_offset, size);
+			*data_out = file_data;
+			*out_size = size;
+			free(nodes);
+			free(string_table);
+			return 0;
+			//printf("%*s %s (%d bytes)\n", dir_index, "", sd, size);
 		}
+		//while (dir_stack[dir_index] == i+2 && dir_index > 0) 
+		//{
+		//	dir_index--;
+		//}
 	}	
+	free(nodes);
+	free(string_table);
+	return -1;
+}
+
+s32 print_names_in_u8(u8 *buffer)
+{
+	U8_archive_header header;
+	U8_node root_node;
+	u32 tag;
+	u32 num_nodes;
+	U8_node* nodes;
+	u8* string_table;
+	size_t rest_size;
+	unsigned int i;
+	u32 data_offset;
+	//u16 dir_stack[16];
+	//int dir_index = 0;
+	
+	memcpy(&header, buffer, sizeof(header));
+	tag = be32((u8*) &header.tag);
+	if (tag != 0x55AA382D) 
+	{
+		printf("No U8 tag\n");
+		return -1;
+	}
+    // printf("Header\n");
+
+	memcpy(&root_node, buffer + sizeof(header), sizeof(root_node));
+	num_nodes = be32((u8*) &root_node.size) - 1;
+
+	nodes = allocate_memory(sizeof(U8_node) * (num_nodes));
+	if (nodes == NULL)
+	{
+		printf("Out of memory\n");
+		return -1;
+	}
+
+	memcpy(nodes, buffer+ sizeof(header)+ sizeof(root_node), num_nodes * sizeof(U8_node));
+
+	data_offset = be32((u8*) &header.data_offset);
+	rest_size = data_offset - sizeof(header) - (num_nodes+1)*sizeof(U8_node);
+
+ 	//printf("REST SIZE\n");
+
+	string_table = allocate_memory(rest_size);
+	if (string_table == NULL)
+	{
+		printf("Out of memory\n");
+		free(nodes);
+		return -1;
+	}
+
+	memcpy(string_table, buffer+ sizeof(header)+ sizeof(root_node)+(num_nodes * sizeof(U8_node)), rest_size);
+
+ 	//printf("ENTERING LOOP\n");
+	for (i = 0; i < num_nodes; i++) 
+	{
+		U8_node* node = &nodes[i];   
+		u16 name_offset = be16((u8*)&node->name_offset);
+		char* name = (char*) &string_table[name_offset];
+		
+		printf("%s\n", name);
+	}	
+	free(nodes);
+	free(string_table);
 	return -1;
 }
 
