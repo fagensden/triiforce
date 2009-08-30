@@ -187,19 +187,19 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	return 0;
 }
  
-int isLZ77compressed(u8 *buffer)
+bool isLZ77compressed(u8 *buffer)
 {
 	if ((buffer[0] == LZ77_0x10_FLAG) || (buffer[0] == LZ77_0x11_FLAG))
 	{
-		return 1;
+		return true;
 	}
 	 
-	return 0;
+	return false;
 }
  
 int decompressLZ77content(u8 *buffer, u32 lenght, u8 **output, u32 *outputLen)
 {
-    u32 ret;
+    s32 ret;
 	switch (buffer[0])
     {
         case LZ77_0x10_FLAG:

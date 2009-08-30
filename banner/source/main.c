@@ -430,20 +430,19 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	}*/
 	//sprintf(u8path, "sd:/%08x/meta/banner.bin", TITLE_LOWER(titleid));
 	//banner_size = read_sd(u8path, &banner);
-	ret = decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
-	if (ret < 0)
+	if (strncmp((char *)(banner+0x20), "lz77", 4) == 0 && isLZ77compressed(banner+0x24))
 	{
-		if(ret != -1)
+		ret = decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
+		if (ret < 0)
 		{
 			free(compressed);
 			free(banner);
 			return ret;
 		}	
-		if(ret == -1)
-		{
-			decompressed_banner = banner+0x20;
-			decompressed_banner_size = banner_size;
-		}	
+	} else
+	{
+		decompressed_banner = banner+0x20;
+		decompressed_banner_size = banner_size;
 	}
 	//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
 	//do_U8_archive(decompressed_banner, u8path);

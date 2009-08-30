@@ -19,7 +19,7 @@
 #define LZ77_0x10_FLAG 0x10
 #define LZ77_0x11_FLAG 0x11
  
-int isLZ77compressed(u8 *buffer);
+bool isLZ77compressed(u8 *buffer);
 int decompressLZ77content(u8 *buffer, u32 lenght, u8 **output, u32 *outputLen);
  
 #endif
