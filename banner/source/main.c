@@ -439,6 +439,11 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 			free(banner);
 			return ret;
 		}	
+		if(ret == -1)
+		{
+			decompressed_banner = banner;
+			decompressed_banner_size = banner_size;
+		}	
 	}
 	//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
 	//do_U8_archive(decompressed_banner, u8path);
