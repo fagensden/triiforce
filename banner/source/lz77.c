@@ -54,7 +54,7 @@ s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	if (out == NULL)
 	{
 		printf("Out of memory\n");
-		return -1;
+		return -2;
 	}
  
     while (compressedPos < inputLen && decompressedPos < decompressedSize)
@@ -141,7 +141,7 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	if (out == NULL)
 	{
 		printf("Out of memory\n");
-		return -1;
+		return -2;
 	}
 	 
 	compressedPos += 0x4;

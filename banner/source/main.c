@@ -433,9 +433,12 @@ s32 get_tpl_vc(GXTexObj *TexObj, unsigned short *heighttemp, unsigned short *wid
 	ret = decompressLZ77content(banner+0x24, banner_size, &decompressed_banner, &decompressed_banner_size);
 	if (ret < 0)
 	{
-		free(compressed);
-		free(banner);
-		return ret;
+		if(ret != -1)
+		{
+			free(compressed);
+			free(banner);
+			return ret;
+		}	
 	}
 	//sprintf(u8path, "sd:/%08x/extracted", TITLE_LOWER(titleid));
 	//do_U8_archive(decompressed_banner, u8path);
@@ -1510,6 +1513,7 @@ void show_menu()
 				//sleep(5);
 				
 				//DCFlushRange(&TexObj, sizeof(TexObj));
+//				udelay(1000);
 				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
 				//sleep(1);
 				//VIDEO_WaitVSync();
