@@ -38,6 +38,7 @@
 
 #include "nand_png.h"
 #include "pointer_png.h"
+	#include "background_png.h"
 
 
 #define Vector guVector
@@ -1471,7 +1472,7 @@ void bootTitle(u64 titleid)
 
 void loadPNGtex(GXTexObj* texObj, char *pngLoc, PNGUPROP *imgPropout)
 {
-	void *texture_data1 = NULL;
+	u8 *texture_data1;
 	PNGUPROP imgProp;//PNGU Image context
 	IMGCTX ctx;
 	
@@ -1479,7 +1480,7 @@ void loadPNGtex(GXTexObj* texObj, char *pngLoc, PNGUPROP *imgPropout)
 	ctx = PNGU_SelectImageFromDevice(pngLoc);
 	PNGU_GetImageProperties(ctx, &imgProp);
 	texture_data1 = allocate_memory(imgProp.imgWidth* imgProp.imgHeight * 2);
-	PNGU_DecodeTo4x4RGB565(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1);
+	PNGU_DecodeTo4x4RGB5A3(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1, 0x00);
 	//GX_InitTexObj (&texObj1, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, G X_CLAMP, GX_CLAMP, GX_FALSE);
 	GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_REPEAT, GX_REPEAT, GX_FALSE);
 	//PNGU_ReleaseImageContext(ctx);
@@ -1489,7 +1490,7 @@ void loadPNGtex(GXTexObj* texObj, char *pngLoc, PNGUPROP *imgPropout)
 }
 void loadPNGbuffertex(GXTexObj* texObj, u8 *buffer, PNGUPROP *imgPropout)
 {
-	void *texture_data1 = NULL;
+	u8 *texture_data1;
 	PNGUPROP imgProp;//PNGU Image context
 	IMGCTX ctx;
 	
@@ -1497,9 +1498,9 @@ void loadPNGbuffertex(GXTexObj* texObj, u8 *buffer, PNGUPROP *imgPropout)
 	ctx = PNGU_SelectImageFromBuffer(buffer);
 	PNGU_GetImageProperties(ctx, &imgProp);
 	texture_data1 = allocate_memory(imgProp.imgWidth* imgProp.imgHeight * 2);
-	PNGU_DecodeTo4x4RGB565(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1);
-	//GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_CLAMP, GX_CLAMP, GX_FALSE);
-	GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_REPEAT, GX_REPEAT, GX_FALSE);
+	PNGU_DecodeTo4x4RGB5A3(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1, 0x00);
+	GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	//GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB5A3, GX_REPEAT, GX_REPEAT, GX_FALSE);
 	//PNGU_ReleaseImageContext(ctx);
 	//DCFlushRange(texture_data1, imgProp.imgWidth * imgProp.imgHeight * 2);
 	free(texture_data1);
@@ -1560,7 +1561,7 @@ void show_menu()
         unsigned short heighttemp = 0;
         unsigned short widthtemp = 0;
         s32 lastbanner = -1;
-		obj_t obj;
+		obj_t obj = allocate_memory(sizeof(obj_t));
 
         int selection = 0;
         u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
@@ -1707,7 +1708,7 @@ void show_menu()
                                 hooktypeoption = optionselected[5];                            
                                 ocarinaoption = optionselected[6];                              
                                 debuggeroption = optionselected[7];                            
-                               
+								
                                 bootTitle(TitleIds[optionselected[1]]);
                                 printf("Press any button to continue\n");
                                 waitforbuttonpress(NULL, NULL);
@@ -1728,10 +1729,14 @@ void show_nand_menu()
 	printf("\x1b[2J");
 	obj_t pointer;
 	obj_t nand;
+	//obj_t background;
 	fill_obj((u8 *)pointer_png, &pointer, 0, 0, 0, 1, 1);
 	fill_obj((u8 *)nand_png, &nand, 0, 0, 0, 1, 1);
+	//fill_obj((u8 *)background_png, &background, 0, 0, 0, 1, 1);
 	nand.x = 300;
 	nand.y = 200;
+	//draw_obj(background);
+	//sleep(5);
 	while (true)
 	{
 	
