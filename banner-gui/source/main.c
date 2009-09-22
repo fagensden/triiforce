@@ -34,12 +34,18 @@
 #include "codes/patchcode.h"
 #include "nand.h"
 #include "background.h"
+#include "libpng/pngu/pngu.h"
+
+#include "nand_png.h"
+#include "pointer_png.h"
+
 
 #define Vector guVector
 #define DEFAULT_FIFO_SIZE	(256*1024)
 
 void *xfb[2] = { NULL, NULL};
 int whichfb = 0;
+ir_t ir;
 
 //u32 *xfb = NULL;
 GXRModeObj *rmode = NULL;
@@ -83,6 +89,17 @@ typedef struct _dolheader
 	u32 bss_size;
 	u32 entry_point;
 } dolheader;
+
+typedef struct _obj
+{
+	GXTexObj PNG;
+	PNGUPROP prop;
+	u32 x;
+	u32 y;
+	float scaleX;
+	f32 scaleY;
+	float degrees;
+} obj_t;
 
 
 typedef struct _dirent
@@ -259,7 +276,7 @@ void videoInit()
     w = rmode->fbWidth - 64;
     h = rmode->xfbHeight - 212 - 32;
 
-	CON_InitEx(rmode, x, y, w, h);
+	//CON_InitEx(rmode, x, y, w, h);
 	
 	// Set console text color
 	printf("\x1b[%u;%um", 37, false);
@@ -1452,167 +1469,305 @@ void bootTitle(u64 titleid)
 
 #define menuitems 8
 
+void loadPNGtex(GXTexObj* texObj, char *pngLoc, PNGUPROP *imgPropout)
+{
+	void *texture_data1 = NULL;
+	PNGUPROP imgProp;//PNGU Image context
+	IMGCTX ctx;
+	
+	//Load textures using PNGU
+	ctx = PNGU_SelectImageFromDevice(pngLoc);
+	PNGU_GetImageProperties(ctx, &imgProp);
+	texture_data1 = allocate_memory(imgProp.imgWidth* imgProp.imgHeight * 2);
+	PNGU_DecodeTo4x4RGB565(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1);
+	//GX_InitTexObj (&texObj1, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, G X_CLAMP, GX_CLAMP, GX_FALSE);
+	GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_REPEAT, GX_REPEAT, GX_FALSE);
+	//PNGU_ReleaseImageContext(ctx);
+	//DCFlushRange(texture_data1, imgProp.imgWidth * imgProp.imgHeight * 2);
+	free(texture_data1);
+	*imgPropout = imgProp;
+}
+void loadPNGbuffertex(GXTexObj* texObj, u8 *buffer, PNGUPROP *imgPropout)
+{
+	void *texture_data1 = NULL;
+	PNGUPROP imgProp;//PNGU Image context
+	IMGCTX ctx;
+	
+	//Load textures using PNGU
+	ctx = PNGU_SelectImageFromBuffer(buffer);
+	PNGU_GetImageProperties(ctx, &imgProp);
+	texture_data1 = allocate_memory(imgProp.imgWidth* imgProp.imgHeight * 2);
+	PNGU_DecodeTo4x4RGB565(ctx, imgProp.imgWidth, imgProp.imgHeight, texture_data1);
+	//GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_CLAMP, GX_CLAMP, GX_FALSE);
+	GX_InitTexObj (texObj, texture_data1, imgProp.imgWidth, imgProp.imgHeight, GX_TF_RGB565, GX_REPEAT, GX_REPEAT, GX_FALSE);
+	//PNGU_ReleaseImageContext(ctx);
+	//DCFlushRange(texture_data1, imgProp.imgWidth * imgProp.imgHeight * 2);
+	free(texture_data1);
+	*imgPropout = imgProp;
+}
+
+void fill_obj_tex(GXTexObj tex, obj_t *obj, u32 x, u32 y, u32 width, u32 height, float degrees, float scaleX, f32 scaleY)
+{
+			
+	obj->PNG = tex;
+	obj->prop.imgWidth = width;
+	obj->prop.imgHeight = height;
+	obj->x = x;
+	obj->y = y;
+	obj->scaleX = scaleX;
+	obj->scaleY = scaleY;
+	obj->degrees = degrees;
+	//gfx_draw_image(300, 200, imgNand.imgWidth, imgNand.imgHeight, nandPNG, 0, 1, 1, 0xff);
+	//gfx_draw_image(x, y, prop.imgWidth, prop.imgHeight, PNG, degrees,scaleX, scaleY, 0xff);
+	//gfx_render_direct();
+	
+}
+void fill_obj(u8 *buffer, obj_t *obj, u32 x, u32 y, float degrees, float scaleX, f32 scaleY)
+{
+
+	PNGUPROP prop;
+	GXTexObj PNG;			
+	loadPNGbuffertex(&PNG, buffer, &prop);
+	obj->PNG = PNG;
+	obj->prop = prop;
+	obj->x = x;
+	obj->y = y;
+	obj->scaleX = scaleX;
+	obj->scaleY = scaleY;
+	obj->degrees = degrees;
+	//gfx_draw_image(300, 200, imgNand.imgWidth, imgNand.imgHeight, nandPNG, 0, 1, 1, 0xff);
+	//gfx_draw_image(x, y, prop.imgWidth, prop.imgHeight, PNG, degrees,scaleX, scaleY, 0xff);
+	//gfx_render_direct();
+	
+}	
+
+void draw_obj(obj_t obj)
+{
+
+	//PNGUPROP prop;
+	//GXTexObj PNG;			
+	//loadPNGbuffertex(&PNG, buffer, &prop);
+	gfx_draw_image(obj.x, obj.y, obj.prop.imgWidth, obj.prop.imgHeight, obj.PNG, obj.degrees, obj.scaleX, obj.scaleY, 0xff);
+	gfx_render_direct();
+}	
 void show_menu()
 {
-	int i;
-	u32 pressed;
-	u32 pressedGC;
-	int ret;
-	GXTexObj TexObj;
-	unsigned short heighttemp = 0;
-	unsigned short widthtemp = 0;
-	s32 lastbanner = -1;
+        int i;
+        u32 pressed;
+        u32 pressedGC;
+        int ret;
+        GXTexObj TexObj;
+        unsigned short heighttemp = 0;
+        unsigned short widthtemp = 0;
+        s32 lastbanner = -1;
+		obj_t obj;
 
-	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
+        int selection = 0;
+        u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
 
-	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption };
+        u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption };
 
-	char *start[1] = { "Start" };
-	char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
-	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
-	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
-	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
-	char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
-	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
+        char *start[1] = { "Start" };
+        char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
+        char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
+        char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
+        char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
+        char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
+        char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 
-	u64 TitleIds[255];
-	char *TitleNames[255];
+        u64 TitleIds[255];
+        char *TitleNames[255];
 
-	char **TitleStrings;
-	u32 Titlecount;
-	
-	printf("\nLoading...");
+        char **TitleStrings;
+        u32 Titlecount;
+       
+        printf("\nLoading...");
 
-	ret = get_game_list(&TitleStrings, &Titlecount);
-	if (ret < 0)
-	{
-		printf("Error getting the title list\n");
-		return;
-	}
-	if (Titlecount == 0)
-	{
-		printf("No titles found\n");
-		return;
-	}
-	printf("...");
-	
-	optioncount[1] = Titlecount;
-	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions, hooktypeoptions, ocarinaoptions, debuggeroptions };
+        ret = get_game_list(&TitleStrings, &Titlecount);
+        if (ret < 0)
+        {
+                printf("Error getting the title list\n");
+                return;
+        }
+        if (Titlecount == 0)
+        {
+                printf("No titles found\n");
+                return;
+        }
+        printf("...");
+       
+        optioncount[1] = Titlecount;
+        char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions, hooktypeoptions, ocarinaoptions, debuggeroptions };
 
-	for (i = 0; i < Titlecount; i++)
-	{
-	    TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
-        TitleNames[i] = get_name(TitleIds[i]);		
-		printf(".");
-	}	
+        for (i = 0; i < Titlecount; i++)
+        {
+            TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
+        TitleNames[i] = get_name(TitleIds[i]);          
+                printf(".");
+        }      
 
+        while (true)
+        {
+                if (lastbanner != optionselected[1])
+                {
+                        ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
+                        if (ret < 0)
+                        {
+                                waitforbuttonpress(NULL, NULL);
+                        } else
+                        {
+                                //printf("Drawing TPD\n");
+                                //sleep(5);
+                               
+                                //DCFlushRange(&TexObj, sizeof(TexObj));
+//                              udelay(1000);
+								fill_obj_tex(TexObj, &obj, 200, 10, 256, 192, 0, 1, 1);
+								draw_obj(obj);
+                                //gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
+                                //sleep(1);
+                                //VIDEO_WaitVSync();
+                               // gfx_render_direct();
+                        }
+                        lastbanner = optionselected[1];
+                }
+
+
+                printf("\x1b[J");
+               
+                printheadline();
+                printf("\n");
+               
+                for (i = 0; i < menuitems; i++)
+                {
+                        set_highlight(selection == i);
+                        if (optiontext[i][optionselected[i]] == NULL)
+            {
+                                printf("???\n");
+            } else
+                        {
+                                printf("%s\n", optiontext[i][optionselected[i]]);
+            }
+                        set_highlight(false);
+                }
+                printf("\n");
+               
+                waitforbuttonpress(&pressed, &pressedGC);
+               
+                if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
+                {
+                        if (selection > 0)
+                        {
+                                selection--;
+                        } else
+                        {
+                                selection = menuitems-1;
+                        }
+                }
+
+                if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+                {
+                        if (selection < menuitems-1)
+                        {
+                                selection++;
+                        } else
+                        {
+                                selection = 0;
+                        }
+                }
+
+                if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
+                {      
+                        if (optionselected[1] > 0)
+                        {
+                                optionselected[1]--;
+                        } else
+                        {
+                                optionselected[1] = optioncount[1]-1;
+                        }
+                }
+
+                if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
+                {      
+                        if (optionselected[1] < optioncount[1]-1)
+                        {
+                                optionselected[1]++;
+                        } else
+                        {
+                                optionselected[1] = 0;
+                        }
+                }
+
+                if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
+                {
+                        if (selection == 0)
+                        {
+                                videooption = optionselected[2];
+                                videopatchoption = optionselected[3];
+                                languageoption = optionselected[4]-1;                          
+                                hooktypeoption = optionselected[5];                            
+                                ocarinaoption = optionselected[6];                              
+                                debuggeroption = optionselected[7];                            
+                               
+                                bootTitle(TitleIds[optionselected[1]]);
+                                printf("Press any button to continue\n");
+                                waitforbuttonpress(NULL, NULL);
+                        }
+                }
+               
+                if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+                {
+                        printf("Exiting...\n");
+                        return;
+                }      
+        }      
+}
+
+
+void show_nand_menu()
+{
+	printf("\x1b[2J");
+	obj_t pointer;
+	obj_t nand;
+	fill_obj((u8 *)pointer_png, &pointer, 0, 0, 0, 1, 1);
+	fill_obj((u8 *)nand_png, &nand, 0, 0, 0, 1, 1);
+	nand.x = 300;
+	nand.y = 200;
 	while (true)
 	{
-		if (lastbanner != optionselected[1])
-		{
-			ret = get_tpl_vc(&TexObj, &heighttemp, &widthtemp, TitleIds[optionselected[1]]);
-			if (ret < 0)
-			{
-				waitforbuttonpress(NULL, NULL);
-			} else
-			{
-				//printf("Drawing TPD\n");
-				//sleep(5);
-				
-				//DCFlushRange(&TexObj, sizeof(TexObj));
-//				udelay(1000);
-				gfx_draw_image(200,10, 256,192, TexObj, 0, 1, 1, 0xff);
-				//sleep(1);
-				//VIDEO_WaitVSync();
-				gfx_render_direct();
-			}
-			lastbanner = optionselected[1];
-		}
+	
+		WPAD_ScanPads();
+		WPAD_IR(0, &ir);
+		u32 pressed = WPAD_ButtonsDown(0);
+		//printf("\x1b[2J");
+		//DrawPng((u8 *)nand_png, 300, 200, rmode);
+		//gfx_draw_image(300, 200, imgNand.imgWidth, imgNand.imgHeight, nandPNG, 0, 1, 1, 0xff);
+		draw_obj(nand);
+		//gfx_render_direct();
+		//printf("Printed nand PNG ... \n");
+		//printf("X = %f\n", ir.x);
+		//printf("Y = %f\n", ir.y);
 
-		printf("\x1b[J");
-		
-		printheadline();
-		printf("\n");
-		
-		for (i = 0; i < menuitems; i++)
-		{
-			set_highlight(selection == i);
-			if (optiontext[i][optionselected[i]] == NULL)
-            {
-				printf("???\n");
-            } else
-			{
-				printf("%s\n", optiontext[i][optionselected[i]]);
-            }
-			set_highlight(false);
-		}
-		printf("\n");
-		
-		waitforbuttonpress(&pressed, &pressedGC);
-		
-		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
-		{
-			if (selection > 0)
-			{
-				selection--;
-			} else
-			{
-				selection = menuitems-1;
-			}
-		}
+		//DrawPng((u8 *)pointer_png, (int)ir.x, (int)ir.y, rmode);
+	//	gfx_draw_image((int)ir.x, (int)ir.y, (u16)imgPointer.imgWidth, (u16)imgPointer.imgHeight, pointerPNG, 0, 1, 1, 0xff);
+	//	gfx_render_direct();
+		pointer.x = (int)ir.x;
+		pointer.y = (int)ir.y;
+		draw_obj(pointer);
 
-		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+		if (pressed & WPAD_BUTTON_A)
 		{
-			if (selection < menuitems-1)
+			if((int)ir.x > 300 && (int)ir.y > 200)
 			{
-				selection++;
-			} else
-			{
-				selection = 0;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
-		{	
-			if (optionselected[selection] > 0)
-			{
-				optionselected[selection]--;
-			} else
-			{
-				optionselected[selection] = optioncount[selection]-1;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
-		{	
-			if (optionselected[selection] < optioncount[selection]-1)
-			{
-				optionselected[selection]++;
-			} else
-			{
-				optionselected[selection] = 0;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
-		{
-			if (selection == 0)
-			{
-				videooption = optionselected[2];
-				videopatchoption = optionselected[3];
-				languageoption = optionselected[4]-1;				
-				hooktypeoption = optionselected[5];				
-				ocarinaoption = optionselected[6];				
-				debuggeroption = optionselected[7];				
-				
-				bootTitle(TitleIds[optionselected[1]]);
-				printf("Press any button to continue\n");
-				waitforbuttonpress(NULL, NULL);
+				if((int)ir.x < 450 && (int)ir.y < 275)
+				{
+					printf("\x1b[2J");
+					show_menu();
+					return;
+				}
 			}
 		}
 		
-		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		if (pressed & WPAD_BUTTON_B)
 		{
 			printf("Exiting...\n");
 			return;
@@ -1621,118 +1776,6 @@ void show_menu()
 }
 
 #define nandmenuitems 1
-
-void show_nand_menu()
-{
-	int i;
-	u32 pressed;
-	u32 pressedGC;
-	int ret;
-
-	int selection = 0;
-	u32 optioncount[nandmenuitems] = { 3 };
-	u32 optionselected[nandmenuitems] = { 0 };
-
-	char *nandoptions[3] = { "Use real NAND", "Use SD-NAND", "Use USB-NAND" };
-	char **optiontext[nandmenuitems] = { nandoptions };
-
-	while (true)
-	{
-		printf("\x1b[J");
-		
-		printheadline();
-		printf("\n");
-		
-		for (i = 0; i < nandmenuitems; i++)
-		{
-			set_highlight(selection == i);
-			if (optiontext[i][optionselected[i]] == NULL)
-            {
-                printf("???\n");
-            } else
-			{
-				printf("%s\n", optiontext[i][optionselected[i]]);
-            }
-			set_highlight(false);
-		}
-		printf("\n");
-		
-		waitforbuttonpress(&pressed, &pressedGC);
-		
-		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
-		{
-			if (selection > 0)
-			{
-				selection--;
-			} else
-			{
-				selection = nandmenuitems-1;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
-		{
-			if (selection < nandmenuitems-1)
-			{
-				selection++;
-			} else
-			{
-				selection = 0;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
-		{	
-			if (optionselected[selection] > 0)
-			{
-				optionselected[selection]--;
-			} else
-			{
-				optionselected[selection] = optioncount[selection]-1;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
-		{	
-			if (optionselected[selection] < optioncount[selection]-1)
-			{
-				optionselected[selection]++;
-			} else
-			{
-				optionselected[selection] = 0;
-			}
-		}
-
-		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
-		{
-			if (selection == 0)
-			{
-				ret = 0;
-				if (optionselected[0] == 1)
-				{
-					ret = Enable_Emu(EMU_SD);
-				} else
-				if (optionselected[0] == 2)
-				{
-					ret = Enable_Emu(EMU_USB);
-				}
-				if (ret < 0)
-				{
-					return;
-				}
-				
-				show_menu();
-				return;
-			}
-		}
-		
-		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
-		{
-			printf("Exiting...\n");
-			return;
-		}	
-	}	
-}
 
 
 int main(int argc, char* argv[])
@@ -1745,8 +1788,8 @@ int main(int argc, char* argv[])
 	
 	Set_Config_to_Defaults();
 
-	printheadline();
-
+	//printheadline();
+//gfx_draw_image(f32 xpos, f32 ypos, u16 width, u16 height, GXTexObj texObj, float degrees, float scaleX, f32 scaleY, u8 alpha )
 	IOS_ReloadIOS(249);
 
 	Power_Flag = false;
@@ -1756,21 +1799,17 @@ int main(int argc, char* argv[])
 
 	PAD_Init();
 	WPAD_Init();
-	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);	
-				
-
+	WPAD_SetVRes(0, 640, 480);
+	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);
+	
+	
 	ISFS_Initialize();
 
 	Set_Config_to_Defaults();
 	
-	if (IOS_GetVersion() == 249 && IOS_GetRevision() == 14)
-	{
-		show_nand_menu();
-	} else
-	{
-		show_menu();
-	}
-	
+
+	show_nand_menu();
+	//show_menu();
 	printf("Press any button\n");
 	waitforbuttonpress(NULL, NULL);
 	
