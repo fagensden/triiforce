@@ -1561,7 +1561,7 @@ void show_menu()
         unsigned short heighttemp = 0;
         unsigned short widthtemp = 0;
         s32 lastbanner = -1;
-		obj_t obj = allocate_memory(sizeof(obj_t));
+		obj_t obj;
 
         int selection = 0;
         u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2 };
