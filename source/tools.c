@@ -22,15 +22,12 @@
 
 #include "tools.h"
 
-#define TRIIFORCE_MAJOR 0
-#define TRIIFORCE_MINOR 42
-
 void printheadline()
 {
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	printf("TriiForce %i.%i", TRIIFORCE_MAJOR, TRIIFORCE_MINOR);
+	printf("TriiForce beta 6");
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());
