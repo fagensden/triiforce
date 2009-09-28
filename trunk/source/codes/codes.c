@@ -60,7 +60,7 @@ void storage_shutdown()
 }
 
 
-s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
+s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 {
 	char text[4];	
 	
@@ -81,7 +81,6 @@ s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
 	}
 	
 	FILE *fp;
-	u8 *filebuff;
 	u32 filesize;
 	u32 ret;
 	char buf[128];
@@ -138,21 +137,9 @@ s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
 		return -1;
 	}	
 	
-	filebuff = (u8*) allocate_memory (filesize);
-	if(filebuff == NULL)
-	{
-		fclose(fp);
-		fatUnmount("fat");
-		storage_shutdown();
-		printf("Out of memory\n");
-		//write_font(185, 346, "Out of memory");
-		return -1;
-	}
-
-	ret = fread(filebuff, 1, filesize, fp);
+	ret = fread(buffer, 1, filesize, fp);
 	if(ret != filesize)
 	{	
-		free(filebuff);
 		fclose(fp);
 		fatUnmount("fat");
 		storage_shutdown();
@@ -165,8 +152,6 @@ s32 load_codes(char *filename, u32 maxsize, u8 **buffer, u32 *buffersize)
 	
 	fatUnmount("fat");
 	storage_shutdown();
-	*buffer = filebuff;
-	*buffersize = filesize;
 	
 	return 0;
 }
@@ -285,7 +270,7 @@ void load_handler()
 
 void do_codes(u64 titleid)
 {
-	s32 ret;
+	s32 ret = 0;
 	char gameidbuffer[8];
 	memset(gameidbuffer, 0, 8);
 	gameidbuffer[0] = (titleid & 0xff000000) >> 24;
@@ -298,30 +283,22 @@ void do_codes(u64 titleid)
 	else
 		codelist = (u8 *) 0x800028E0;
 
-	u8 *tempcodelist = NULL;
-	u32 tempcodelistsize;
+	load_handler();
+	memcpy((void *)0x80001800, gameidbuffer, 6);
 
 	if (ocarinaoption != 0)
 	{
 		memset(codelist, 0, (u32)codelistend - (u32)codelist);
 		
-		ret = load_codes(gameidbuffer, (u32)codelistend - (u32)codelist, &tempcodelist, &tempcodelistsize);
+		ret = load_codes(gameidbuffer, (u32)codelistend - (u32)codelist, codelist);
 		if (ret >= 0)
 		{
-			memcpy(codelist, tempcodelist, tempcodelistsize);
-			free(tempcodelist);
-
 			printf("Codes found. Applying\n");
 			//write_font(185, 346, "Codes found. Applying");
-		} else
-		{
-			
 		}
 		sleep(3);
 	}
-		
-	load_handler();
-	memcpy((void *)0x80001800, gameidbuffer, 8);
+
 	DCFlushRange((void*)0x80000000, 0x3f00);
 }
 
