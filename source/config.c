@@ -28,5 +28,7 @@ void Set_Config_to_Defaults()
 	hooktypeoption = 0;
 	debuggeroption = 0;
 	ocarinaoption = 0;
+	
+	bootmethodoption = 0;
 }
 

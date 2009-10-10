@@ -23,6 +23,8 @@ u32 hooktypeoption;
 u32 debuggeroption;
 u32 ocarinaoption;
 
+u32 bootmethodoption;
+
 
 void Set_Config_to_Defaults();
 
