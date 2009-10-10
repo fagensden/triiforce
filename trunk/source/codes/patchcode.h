@@ -16,7 +16,7 @@ extern const u32 axnextframehooks[4];
 //void patchmenu(void *addr, u32 len, int patchnum);
 //void langpatcher(void *addr, u32 len);
 //void vidolpatcher(void *addr, u32 len);
-bool dochannelhooks(void *addr, u32 len);
+bool dochannelhooks(void *addr, u32 len, bool bootcontentloaded);
 //void patch_002(void *addr, u32 len);
 //void patchdebug(void *addr, u32 len);
 //void determine_libogc_hook(void *addr, u32 len);
