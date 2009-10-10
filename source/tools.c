@@ -27,7 +27,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	printf("TriiForce beta 6");
+	printf("TriiForce beta 7");
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());

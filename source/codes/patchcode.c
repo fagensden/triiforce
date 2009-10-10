@@ -12,8 +12,10 @@ extern void patchhook(u32 address, u32 len);
 extern void patchhook2(u32 address, u32 len);
 extern void patchhook3(u32 address, u32 len);
 
+/*
 extern void multidolpatchone(u32 address, u32 len);
 extern void multidolpatchtwo(u32 address, u32 len);
+*/
 
 /*
 extern void regionfreejap(u32 address, u32 len);
@@ -149,13 +151,15 @@ const u32 wpadbuttonsdown2hooks[4] = {
 	0x7D6B4A14, 0x800B0010, 0x7C030378, 0x4E800020
 };
 
+/*
 const u32 multidolhooks[4] = {
 	0x7C0004AC, 0x4C00012C, 0x7FE903A6, 0x4E800420
 };
-
+*/
 const u32 multidolchanhooks[4] = {
 	0x4200FFF4, 0x48000004, 0x38800000, 0x4E800020
 };
+
 
 /*
 const u32 langpatch[3] = {
@@ -415,12 +419,13 @@ void vidolpatcher(void *addr, u32 len)
 }
 */
 //---------------------------------------------------------------------------------
-bool dochannelhooks(void *addr, u32 len)
+bool dochannelhooks(void *addr, u32 len, bool bootcontentloaded)
 //---------------------------------------------------------------------------------
 {
 	void *addr_start = addr;
 	void *addr_end = addr+len;
 	bool patched = false;
+	bool multidolpatched = false;
 	
 	while(addr_start < addr_end)
 	{
@@ -437,11 +442,6 @@ bool dochannelhooks(void *addr, u32 len)
 					patchhook((u32)addr_start, len);
 					patched = true;
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 				
 			case 0x02:
@@ -457,11 +457,6 @@ bool dochannelhooks(void *addr, u32 len)
 					patchhook((u32)addr_start, len);
 					patched = true;
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 				
 			case 0x03:
@@ -470,11 +465,6 @@ bool dochannelhooks(void *addr, u32 len)
 				{
 					patchhook((u32)addr_start, len);
 					patched = true;
-				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
 				}
 				break;
 				
@@ -485,11 +475,6 @@ bool dochannelhooks(void *addr, u32 len)
 					patchhook((u32)addr_start, len);
 					patched = true;
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 				
 			case 0x05:
@@ -498,11 +483,6 @@ bool dochannelhooks(void *addr, u32 len)
 				{
 					patchhook((u32)addr_start, len);
 					patched = true;
-				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
 				}
 				break;
 				
@@ -513,12 +493,6 @@ bool dochannelhooks(void *addr, u32 len)
 					patchhook((u32)addr_start, len);
 					patched = true;
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
-				{
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 				
 			case 0x07:
@@ -528,11 +502,6 @@ bool dochannelhooks(void *addr, u32 len)
 					patchhook((u32)addr_start, len);
 					patched = true;
 				}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0){
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 				
 			case 0x08:
@@ -541,17 +510,29 @@ bool dochannelhooks(void *addr, u32 len)
 				//	patchhook((u32)addr_start, len);
 				//patched = true;
 				//}
-				if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
-				{
-					*(((u32*)addr_start)+1) = 0x7FE802A6;
-					DCFlushRange(((u32*)addr_start)+1, 4);
-					multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
-				}
 				break;
 		}
+		if (hooktypeoption != 0)
+		{
+			if(memcmp(addr_start, multidolchanhooks, sizeof(multidolchanhooks))==0)
+			{
+				*(((u32*)addr_start)+1) = 0x7FE802A6;
+				DCFlushRange(((u32*)addr_start)+1, 4);
+				multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
+				multidolpatched = true;
+			}
+		}
+		
 		addr_start += 4;
 	}
-	return patched;
+	
+	if (bootcontentloaded)
+	{
+		return multidolpatched;
+	} else
+	{
+		return patched;
+	}
 }
 /*
 //---------------------------------------------------------------------------------

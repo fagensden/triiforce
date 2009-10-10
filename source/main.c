@@ -207,7 +207,9 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	int i;
 	for (i = 0; i < maxnum; i++)
 	{	
-		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0) // Ignore channels starting with H (Channels) and U (Loadstructor channels)
+		// Ignore channels starting with H (Channels) and U (Loadstructor channels)
+		// Also ignore the HBC, title id "JODI"
+		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0 && memcmp(list[i].name, "4a4f4449", 8) != 0 && memcmp(list[i].name, "4A4F4449", 8) != 0)
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
 			
@@ -370,13 +372,13 @@ void patch_dol(bool bootcontent)
 		if (hooktypeoption != 0)
 		{
 			// Before this can be done, the codehandler needs to be in memory, and the code to patch needs to be in the right pace
-			if (dochannelhooks(dolchunkoffset[i], dolchunksize[i]))
+			if (dochannelhooks(dolchunkoffset[i], dolchunksize[i], bootcontent))
 			{
 				hookpatched = true;
 			}			
 		}
 	}
-	if (!hookpatched)
+	if (hooktypeoption != 0 && !hookpatched)
 	{
 		printf("Error: Could not patch the hook\n");
 		printf("Ocarina and debugger won't work\n");
@@ -531,7 +533,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 			printf("Searching for main.dol failed\n");
 			printf("Press A to load nand loader instead...\n");
 			waitforbuttonpress(&pressed, &pressedGC);
-			if (pressed != WPAD_BUTTON_A && pressedGC != PAD_BUTTON_A)
+			if (pressed != WPAD_BUTTON_A && pressed != WPAD_CLASSIC_BUTTON_A && pressedGC != PAD_BUTTON_A)
 			{
 				printf("Other button pressed\n");
 				return ret;
@@ -944,7 +946,7 @@ void bootTitle(u64 titleid)
 	u32 dolsize;
 	bool bootcontentloaded;
 	
-	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, true);
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, false);
 	if (ret < 0)
 	{
 		printf(".dol loading failed\n");
@@ -1124,7 +1126,7 @@ void show_menu()
 
 	while (true)
 	{
-		printf("\x1b[J");
+		printf("\x1b[2J");
 		
 		printheadline();
 		printf("\n");
@@ -1145,7 +1147,7 @@ void show_menu()
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
-		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
+		if (pressed == WPAD_BUTTON_UP || pressed == WPAD_CLASSIC_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
 		{
 			if (selection > 0)
 			{
@@ -1156,7 +1158,7 @@ void show_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+		if (pressed == WPAD_BUTTON_DOWN || pressed == WPAD_CLASSIC_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
 		{
 			if (selection < menuitems-1)
 			{
@@ -1167,7 +1169,7 @@ void show_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
+		if (pressed == WPAD_BUTTON_LEFT || pressed == WPAD_CLASSIC_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
 		{	
 			if (optionselected[selection] > 0)
 			{
@@ -1178,7 +1180,7 @@ void show_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
+		if (pressed == WPAD_BUTTON_RIGHT || pressed == WPAD_CLASSIC_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
 		{	
 			if (optionselected[selection] < optioncount[selection]-1)
 			{
@@ -1189,7 +1191,7 @@ void show_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
+		if (pressed == WPAD_BUTTON_A || pressed == WPAD_CLASSIC_BUTTON_A || pressedGC == PAD_BUTTON_A)
 		{
 			if (selection == 0)
 			{
@@ -1206,7 +1208,7 @@ void show_menu()
 			}
 		}
 		
-		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
 		{
 			printf("Exiting...\n");
 			return;
@@ -1232,7 +1234,7 @@ void show_nand_menu()
 
 	while (true)
 	{
-		printf("\x1b[J");
+		printf("\x1b[2J");
 		
 		printheadline();
 		printf("\n");
@@ -1253,7 +1255,7 @@ void show_nand_menu()
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
-		if (pressed == WPAD_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
+		if (pressed == WPAD_BUTTON_UP || pressed == WPAD_CLASSIC_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
 		{
 			if (selection > 0)
 			{
@@ -1264,7 +1266,7 @@ void show_nand_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
+		if (pressed == WPAD_BUTTON_DOWN || pressed == WPAD_CLASSIC_BUTTON_DOWN || pressedGC == PAD_BUTTON_DOWN)
 		{
 			if (selection < nandmenuitems-1)
 			{
@@ -1275,7 +1277,7 @@ void show_nand_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
+		if (pressed == WPAD_BUTTON_LEFT || pressed == WPAD_CLASSIC_BUTTON_LEFT || pressedGC == PAD_BUTTON_LEFT)
 		{	
 			if (optionselected[selection] > 0)
 			{
@@ -1286,7 +1288,7 @@ void show_nand_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
+		if (pressed == WPAD_BUTTON_RIGHT || pressed == WPAD_CLASSIC_BUTTON_RIGHT || pressedGC == PAD_BUTTON_RIGHT)
 		{	
 			if (optionselected[selection] < optioncount[selection]-1)
 			{
@@ -1297,7 +1299,7 @@ void show_nand_menu()
 			}
 		}
 
-		if (pressed == WPAD_BUTTON_A || pressedGC == PAD_BUTTON_A)
+		if (pressed == WPAD_BUTTON_A || pressed == WPAD_CLASSIC_BUTTON_A || pressedGC == PAD_BUTTON_A)
 		{
 			if (selection == 0)
 			{
@@ -1322,7 +1324,7 @@ void show_nand_menu()
 			}
 		}
 		
-		if (pressed == WPAD_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
 		{
 			printf("Exiting...\n");
 			return;
