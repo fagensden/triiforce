@@ -88,7 +88,7 @@ s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 	ret = storage.startup();
 	if (ret < 0) 
 	{
-		printf("%s Error\n", text);
+		Print("%s Error\n", text);
 		//write_font(185, 346, "%s Error", text);
 		return ret;
 	}
@@ -97,7 +97,7 @@ s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 	if (ret < 0) 
 	{
 		storage_shutdown();
-		printf("FAT Error\n");
+		Print("FAT Error\n");
 		//write_font(185, 346, "FAT Error");
 		return ret;
 	}
@@ -117,8 +117,8 @@ s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 	{
 		fatUnmount("fat");
 		storage_shutdown();
-		printf("Failed to open %s\n", buf);
-		printf("No %s codes found\n", text);
+		Print("Failed to open %s\n", buf);
+		Print("No %s codes found\n", text);
 		sleep(3);
 		//write_font(185, 346, "No %s codes found", text);
 		return -1;
@@ -132,7 +132,7 @@ s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 	{
 		fatUnmount("fat");
 		storage_shutdown();
-		printf("Too many codes\n");
+		Print("Too many codes\n");
 		//write_font(185, 346, ""Too many codes");
 		return -1;
 	}	
@@ -143,7 +143,7 @@ s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 		fclose(fp);
 		fatUnmount("fat");
 		storage_shutdown();
-		printf("%s Code Error\n", text);
+		Print("%s Code Error\n", text);
 		//write_font(185, 346, "%s Code Error", text);
 		return -1;
 	}
@@ -293,7 +293,7 @@ void do_codes(u64 titleid)
 		ret = load_codes(gameidbuffer, (u32)codelistend - (u32)codelist, codelist);
 		if (ret >= 0)
 		{
-			printf("Codes found. Applying\n");
+			Print("Codes found. Applying\n");
 			//write_font(185, 346, "Codes found. Applying");
 		}
 		sleep(3);

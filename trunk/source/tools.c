@@ -18,33 +18,62 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
 #include <wiiuse/wpad.h>
 
 #include "tools.h"
+
+static bool silent = false;
+
+void set_silent(bool value)
+{
+	silent = value;
+}
+
+bool get_silent()
+{
+	return silent;
+}
+
+void Print(const char *text, ...)
+{
+	if (!silent)
+	{
+		char Buffer[1024];
+		va_list args;
+
+		va_start(args, text);
+		vsprintf(Buffer, text, args);
+
+		va_end(args);
+		
+		printf(Buffer);
+	}
+}
 
 void printheadline()
 {
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	printf("TriiForce beta 7");
+	Print("TriiForce beta 8");
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());
-	printf("\x1B[%d;%dH", 0, cols-strlen(buf)-1);	
-	printf(buf);
+	Print("\x1B[%d;%dH", 0, cols-strlen(buf)-1);	
+	Print(buf);
 }
 
 void set_highlight(bool highlight)
 {
 	if (highlight)
 	{
-		printf("\x1b[%u;%um", 47, false);
-		printf("\x1b[%u;%um", 30, false);
+		Print("\x1b[%u;%um", 47, false);
+		Print("\x1b[%u;%um", 30, false);
 	} else
 	{
-		printf("\x1b[%u;%um", 37, false);
-		printf("\x1b[%u;%um", 40, false);
+		Print("\x1b[%u;%um", 37, false);
+		Print("\x1b[%u;%um", 40, false);
 	}
 }
 
@@ -105,14 +134,14 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 
 	if (buffer == NULL)
 	{
-		printf("NULL Pointer\n");
+		Print("NULL Pointer\n");
 		return -1;
 	}
 
 	Fd = ISFS_Open(filepath, ISFS_OPEN_READ);
 	if (Fd < 0)
 	{
-		printf("ISFS_Open %s failed %d\n", filepath, Fd);
+		Print("ISFS_Open %s failed %d\n", filepath, Fd);
 		return Fd;
 	}
 
@@ -120,14 +149,14 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	status = allocate_memory(sizeof(fstats));
 	if (status == NULL)
 	{
-		printf("Out of memory for status\n");
+		Print("Out of memory for status\n");
 		return -1;
 	}
 	
 	ret = ISFS_GetFileStats(Fd, status);
 	if (ret < 0)
 	{
-		printf("ISFS_GetFileStats failed %d\n", ret);
+		Print("ISFS_GetFileStats failed %d\n", ret);
 		ISFS_Close(Fd);
 		free(status);
 		return -1;
@@ -136,7 +165,7 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	*buffer = allocate_memory(status->file_length);
 	if (*buffer == NULL)
 	{
-		printf("Out of memory for buffer\n");
+		Print("Out of memory for buffer\n");
 		ISFS_Close(Fd);
 		free(status);
 		return -1;
@@ -145,7 +174,7 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	ret = ISFS_Read(Fd, *buffer, status->file_length);
 	if (ret < 0)
 	{
-		printf("ISFS_Read failed %d\n", ret);
+		Print("ISFS_Read failed %d\n", ret);
 		ISFS_Close(Fd);
 		free(status);
 		free(*buffer);
@@ -171,48 +200,48 @@ s32 identify(u64 titleid, u32 *ios)
 	
 	int ret;
 
-	printf("Reading TMD...");
+	Print("Reading TMD...");
 	fflush(stdout);
 	
 	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	ret = read_file(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
-		printf("Reading TMD failed\n");
+		Print("Reading TMD failed\n");
 		return ret;
 	}
-	printf("done\n");
+	Print("done\n");
 
 	*ios = (u32)(tmdBuffer[0x18b]);
 
-	printf("Reading ticket...");
+	Print("Reading ticket...");
 	fflush(stdout);
 
 	sprintf(filepath, "/ticket/%08x/%08x.tik", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	ret = read_file(filepath, &tikBuffer, &tikSize);
 	if (ret < 0)
 	{
-		printf("Reading ticket failed\n");
+		Print("Reading ticket failed\n");
 		free(tmdBuffer);
 		return ret;
 	}
-	printf("done\n");
+	Print("done\n");
 
-	printf("Reading certs...");
+	Print("Reading certs...");
 	fflush(stdout);
 
 	sprintf(filepath, "/sys/cert.sys");
 	ret = read_file(filepath, &certBuffer, &certSize);
 	if (ret < 0)
 	{
-		printf("Reading certs failed\n");
+		Print("Reading certs failed\n");
 		free(tmdBuffer);
 		free(tikBuffer);
 		return ret;
 	}
-	printf("done\n");
+	Print("done\n");
 	
-	printf("ES_Identify...");
+	Print("ES_Identify...");
 	fflush(stdout);
 
 	ret = ES_Identify((signed_blob*)certBuffer, certSize, (signed_blob*)tmdBuffer, tmdSize, (signed_blob*)tikBuffer, tikSize, NULL);
@@ -221,19 +250,19 @@ s32 identify(u64 titleid, u32 *ios)
 		switch(ret)
 		{
 			case ES_EINVAL:
-				printf("Error! ES_Identify (ret = %d;) Data invalid!\n", ret);
+				Print("Error! ES_Identify (ret = %d;) Data invalid!\n", ret);
 				break;
 			case ES_EALIGN:
-				printf("Error! ES_Identify (ret = %d;) Data not aligned!\n", ret);
+				Print("Error! ES_Identify (ret = %d;) Data not aligned!\n", ret);
 				break;
 			case ES_ENOTINIT:
-				printf("Error! ES_Identify (ret = %d;) ES not initialized!\n", ret);
+				Print("Error! ES_Identify (ret = %d;) ES not initialized!\n", ret);
 				break;
 			case ES_ENOMEM:
-				printf("Error! ES_Identify (ret = %d;) No memory!\n", ret);
+				Print("Error! ES_Identify (ret = %d;) No memory!\n", ret);
 				break;
 			default:
-				printf("Error! ES_Identify (ret = %d)\n", ret);
+				Print("Error! ES_Identify (ret = %d)\n", ret);
 				break;
 		}
 		free(tmdBuffer);
@@ -241,7 +270,7 @@ s32 identify(u64 titleid, u32 *ios)
 		free(certBuffer);
 		return ret;
 	}
-	printf("done\n");
+	Print("done\n");
 	
 	free(tmdBuffer);
 	free(tikBuffer);
