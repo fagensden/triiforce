@@ -26,5 +26,7 @@ s32 identify(u64 titleid, u32 *ios);
 void set_highlight(bool highlight);
 void waitforbuttonpress(u32 *out, u32 *outGC);
 void printheadline();
-
+void set_silent(bool value);
+bool get_silent();
+void Print(const char *text, ...);
 

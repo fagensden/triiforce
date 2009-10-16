@@ -2,6 +2,7 @@
 #include <ogcsys.h>
 
 #include "nand.h"
+#include "tools.h"
 
 /* Buffer */
 static u32 inbuf[8] ATTRIBUTE_ALIGN(32);
@@ -11,7 +12,6 @@ static nandDevice ndevList[] = {
 	{ "SD/SDHC Card",			1,	0xF0,	0xF1 },
 	{ "USB 2.0 Mass Storage Device",	2,	0xF2,	0xF3 },
 };
-
 
 
 s32 Nand_Mount(nandDevice *dev)
@@ -104,15 +104,14 @@ s32 Enable_Emu(int selection)
 	ret = Nand_Mount(ndev);
 	if (ret < 0) 
 	{
-		printf(" ERROR Mount! (ret = %d)\n", ret);
+		Print(" ERROR Mount! (ret = %d)\n", ret);
 		return ret;
-
 	}
 
 	ret = Nand_Enable(ndev);
 	if (ret < 0) 
 	{
-		printf(" ERROR Enable! (ret = %d)\n", ret);
+		Print(" ERROR Enable! (ret = %d)\n", ret);
 		return ret;
 	}
 	mounted = selection;
@@ -126,8 +125,8 @@ s32 Disable_Emu()
 	nandDevice *ndev = NULL;
 	ndev = &ndevList[mounted];
 	
-	Nand_Unmount(ndev);
 	Nand_Disable();
+	Nand_Unmount(ndev);
 	
 	mounted = 0;
 	

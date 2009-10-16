@@ -62,6 +62,16 @@ static void reset_cb()
 	Reset_Flag = true;
 }
 
+void reboot()
+{
+	Disable_Emu();
+	if (exitworks)
+	{
+		exit(0);
+	}
+	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
+}
+
 typedef void (*entrypoint) (void);
 
 typedef struct _dolheader
@@ -85,7 +95,7 @@ typedef struct _dirent
 } dirent_t;
 
 
-void videoInit()
+void videoInit(bool banner)
 {
 	VIDEO_Init();
 	rmode = VIDEO_GetPreferredMode(0);
@@ -97,20 +107,28 @@ void videoInit()
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
  	
-    int x = 32, y = 212, w, h;
-    w = rmode->fbWidth - 64;
-    h = rmode->xfbHeight - 212 - 32;
+    int x, y, w, h;
+	
+	if (banner)
+	{
+		x = 32;
+		y = 212;
+		w = rmode->fbWidth - 64;
+		h = rmode->xfbHeight - 212 - 32;
+	} else
+	{
+		x = 24;
+		y = 32;
+		w = rmode->fbWidth - (32);
+		h = rmode->xfbHeight - (48);
+	}
 
 	CON_InitEx(rmode, x, y, w, h);
 	
 	// Set console text color
-	printf("\x1b[%u;%um", 37, false);
-	printf("\x1b[%u;%um", 40, false);
+	Print("\x1b[%u;%um", 37, false);
+	Print("\x1b[%u;%um", 40, false);
 	
-//    int x = 24, y = 32, w, h;
-//    w = rmode->fbWidth - (32);
-//    h = rmode->xfbHeight - (48);
-//	CON_InitEx(rmode, x, y+240, w, h-240);
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 }
@@ -139,7 +157,7 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 	res = ISFS_ReadDir(path, NULL, &num);
 	if(res != ISFS_OK)
 	{
-		printf("Error: could not get dir entry count! (result: %d)\n", res);
+		Print("Error: could not get dir entry count! (result: %d)\n", res);
 		return -1;
 	}
 
@@ -148,14 +166,14 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 
 	if(nbuf == NULL)
 	{
-		printf("Error: could not allocate buffer for name list!\n");
+		Print("Error: could not allocate buffer for name list!\n");
 		return -2;
 	}
 
 	res = ISFS_ReadDir(path, nbuf, &num);
 	if(res != ISFS_OK)
 	{
-		printf("Error: could not get name list! (result: %d)\n", res);
+		Print("Error: could not get name list! (result: %d)\n", res);
 		return -3;
 	}
 	
@@ -192,7 +210,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
     ret = getdir(path, &list, &maxnum);
     if (ret < 0)
 	{
-		printf("Reading folder /title/00010001 failed\n");
+		Print("Reading folder /title/00010001 failed\n");
 		return ret;
 	}
 
@@ -200,7 +218,7 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	if (temp == NULL)
 	{
 		free(list);
-		printf("Out of memory\n");
+		Print("Out of memory\n");
 		return -1;
 	}
 
@@ -260,7 +278,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
     u8 *buffer = allocate_memory(8);
 	if (buffer == NULL)
 	{
-		printf("Out of memory\n");
+		Print("Out of memory\n");
 		return -1;
 	}
 	
@@ -270,7 +288,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
     ret = getdir(contentpath, &list, &num);
     if (ret < 0)
 	{
-		printf("Reading folder of the title failed\n");
+		Print("Reading folder of the title failed\n");
 		free(buffer);
 		return ret;
 	}
@@ -284,14 +302,14 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
             cfd = ISFS_Open(path, ISFS_OPEN_READ);
             if (cfd < 0)
 			{
-	    	    printf("ISFS_Open for %s failed %d\n", path, cfd);
+	    	    Print("ISFS_Open for %s failed %d\n", path, cfd);
 				continue; 
 			}
 
             ret = ISFS_Read(cfd, buffer, 7);
 	        if (ret < 0)
 	        {
-	    	    printf("ISFS_Read for %s failed %d\n", path, ret);
+	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
 		        ISFS_Close(cfd);
 				continue;
 	        }
@@ -302,25 +320,25 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 			{
                 if (buffer[0] == LZ77_0x10)
 				{
-					printf("Found LZ77 0x10 compressed content --> %s\n", list[cnt].name);
+					Print("Found LZ77 0x10 compressed content --> %s\n", list[cnt].name);
 				} else
 				{
-					printf("Found LZ77 0x11 compressed content --> %s\n", list[cnt].name);
+					Print("Found LZ77 0x11 compressed content --> %s\n", list[cnt].name);
 				}
-				printf("This is most likely the main DOL, decompressing for checking\n");
+				Print("This is most likely the main DOL, decompressing for checking\n");
 				ret = read_file(path, &compressed, &size_out);
 				if (ret < 0)
 				{
-					printf("Reading file failed\n");
+					Print("Reading file failed\n");
 					free(buffer);
 					free(list);
 					return ret;
 				}
-				printf("read file\n");
+				Print("read file\n");
 				ret = decompressLZ77content(compressed, 32, &decompressed, &decomp_size);
 				if (ret < 0)
 				{
-					printf("Decompressing failed\n");
+					Print("Decompressing failed\n");
 					free(buffer);
 					free(list);
 					return ret;
@@ -331,7 +349,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	        ret = memcmp(buffer, check, 6);
             if(ret == 0)
             {
-				printf("Found DOL --> %s\n", list[cnt].name);
+				Print("Found DOL --> %s\n", list[cnt].name);
 				sprintf(out, "%s", path);
 				free(buffer);
 				free(list);
@@ -343,7 +361,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	free(buffer);
 	free(list);
 	
-	printf("No .dol found\n");
+	Print("No .dol found\n");
 	return -1;
 }
 
@@ -380,9 +398,8 @@ void patch_dol(bool bootcontent)
 	}
 	if (hooktypeoption != 0 && !hookpatched)
 	{
-		printf("Error: Could not patch the hook\n");
-		printf("Ocarina and debugger won't work\n");
-		sleep(5);
+		Print("Error: Could not patch the hook\n");
+		Print("Ocarina and debugger won't work\n");
 	}
 }  
 
@@ -394,13 +411,13 @@ u32 load_dol(u8 *buffer)
 	dolheader *dolfile;
 	dolfile = (dolheader *)buffer;
 	
-	printf("Entrypoint: %08x\n", dolfile->entry_point);
-	printf("BSS: %08x, size = %08x(%u)\n", dolfile->bss_start, dolfile->bss_size, dolfile->bss_size);
+	Print("Entrypoint: %08x\n", dolfile->entry_point);
+	Print("BSS: %08x, size = %08x(%u)\n", dolfile->bss_start, dolfile->bss_size, dolfile->bss_size);
 
 	memset((void *)dolfile->bss_start, 0, dolfile->bss_size);
 	DCFlushRange((void *)dolfile->bss_start, dolfile->bss_size);
 	
-    printf("BSS cleared\n");
+    Print("BSS cleared\n");
 	
 	u32 doloffset;
 	u32 memoffset;
@@ -421,7 +438,7 @@ u32 load_dol(u8 *buffer)
 		memoffset = dolfile->text_start[i];
 		restsize = dolfile->text_size[i];
 
-		printf("Moving text section %u from %08x to %08x-%08x...", i, dolfile->text_pos[i], dolfile->text_start[i], dolfile->text_start[i]+dolfile->text_size[i]);
+		Print("Moving text section %u from %08x to %08x-%08x...", i, dolfile->text_pos[i], dolfile->text_start[i], dolfile->text_start[i]+dolfile->text_size[i]);
 		fflush(stdout);
 			
 		while (restsize > 0)
@@ -442,7 +459,7 @@ u32 load_dol(u8 *buffer)
 			memoffset += size;
 		}
 
-		printf("done\n");
+		Print("done\n");
 		fflush(stdout);			
 	}
 
@@ -459,7 +476,7 @@ u32 load_dol(u8 *buffer)
 		memoffset = dolfile->data_start[i];
 		restsize = dolfile->data_size[i];
 
-		printf("Moving data section %u from %08x to %08x-%08x...", i, dolfile->data_pos[i], dolfile->data_start[i], dolfile->data_start[i]+dolfile->data_size[i]);
+		Print("Moving data section %u from %08x to %08x-%08x...", i, dolfile->data_pos[i], dolfile->data_start[i], dolfile->data_start[i]+dolfile->data_size[i]);
 		fflush(stdout);
 			
 		while (restsize > 0)
@@ -480,7 +497,7 @@ u32 load_dol(u8 *buffer)
 			memoffset += size;
 		}
 
-		printf("done\n");
+		Print("done\n");
 		fflush(stdout);			
 	} 
 	return dolfile->entry_point;
@@ -502,16 +519,16 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	u32 pressed;
 	u32 pressedGC;
 
-	printf("Reading TMD...");
+	Print("Reading TMD...");
 
 	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	ret = read_file(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
-		printf("Reading TMD failed\n");
+		Print("Reading TMD failed\n");
 		return ret;
 	}
-	printf("done\n");
+	Print("done\n");
 	
 	bootindex = ((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer))->boot_index;
 	p_cr = TMD_CONTENTS(((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer)));
@@ -525,17 +542,17 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	if (skip_bootcontent)
 	{
 		bootcontent_loaded = false;
-		printf("Searching for main DOL...\n");
+		Print("Searching for main DOL...\n");
 			
 		ret = check_dol(titleid, filepath, bootcontent);
 		if (ret < 0)
 		{
-			printf("Searching for main.dol failed\n");
-			printf("Press A to load nand loader instead...\n");
+			Print("Searching for main.dol failed\n");
+			Print("Press A to load nand loader instead...\n");
 			waitforbuttonpress(&pressed, &pressedGC);
 			if (pressed != WPAD_BUTTON_A && pressed != WPAD_CLASSIC_BUTTON_A && pressedGC != PAD_BUTTON_A)
 			{
-				printf("Other button pressed\n");
+				Print("Other button pressed\n");
 				return ret;
 			}
 			bootcontent_loaded = true;
@@ -545,12 +562,12 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 		bootcontent_loaded = true;
 	}
 	
-    printf("Loading DOL: %s\n", filepath);
+    Print("Loading DOL: %s\n", filepath);
 	
 	ret = read_file(filepath, contentBuf, contentSize);
 	if (ret < 0)
 	{
-		printf("Reading .dol failed\n");
+		Print("Reading .dol failed\n");
 		return ret;
 	}
 	
@@ -560,7 +577,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize);
 		if (ret < 0)
 		{
-			printf("Decompression failed\n");
+			Print("Decompression failed\n");
 			free(*contentBuf);
 			return ret;
 		}
@@ -744,7 +761,7 @@ char *read_name_from_banner_app(u64 titleid)
     ret = getdir(contentpath, &list, &num);
     if (ret < 0)
 	{
-		printf("Reading folder of the title failed\n");
+		Print("Reading folder of the title failed\n");
 		free(buffer);
 		return NULL;
 	}
@@ -760,14 +777,14 @@ char *read_name_from_banner_app(u64 titleid)
             cfd = ISFS_Open(path, ISFS_OPEN_READ);
             if (cfd < 0)
 			{
-	    	    printf("ISFS_OPEN for %s failed %d\n", path, cfd);
+	    	    Print("ISFS_OPEN for %s failed %d\n", path, cfd);
 				continue;
 			}
 			
             ret = ISFS_Read(cfd, buffer, 800);
 	        if (ret < 0)
 	        {
-	    	    printf("ISFS_Read for %s failed %d\n", path, ret);
+	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
 		        ISFS_Close(cfd);
 				continue;
 	        }
@@ -787,7 +804,7 @@ char *read_name_from_banner_app(u64 titleid)
 				out = allocate_memory(length+10);
 				if(out == NULL)
 				{
-					printf("Allocating memory for buffer failed\n");
+					Print("Allocating memory for buffer failed\n");
 					free(buffer);
 					return NULL;
 				}
@@ -831,14 +848,14 @@ char *read_name_from_banner_bin(u64 titleid)
 	cfd = ISFS_Open(path, ISFS_OPEN_READ);
 	if (cfd < 0)
 	{
-		//printf("ISFS_OPEN for %s failed %d\n", path, cfd);
+		//Print("ISFS_OPEN for %s failed %d\n", path, cfd);
 		return NULL;
 	} else
 	{
 	    ret = ISFS_Read(cfd, buffer, 160);
 	    if (ret < 0)
 	    {
-			printf("ISFS_Read for %s failed %d\n", path, ret);
+			Print("ISFS_Read for %s failed %d\n", path, ret);
 		    ISFS_Close(cfd);
 			free(buffer);
 			return NULL;
@@ -856,7 +873,7 @@ char *read_name_from_banner_bin(u64 titleid)
 		out = allocate_memory(length+10);
 		if(out == NULL)
 		{
-			printf("Allocating memory for buffer failed\n");
+			Print("Allocating memory for buffer failed\n");
 			free(buffer);
 			return NULL;
 		}
@@ -949,7 +966,7 @@ void bootTitle(u64 titleid)
 	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, (bootmethodoption == 0));
 	if (ret < 0)
 	{
-		printf(".dol loading failed\n");
+		Print(".dol loading failed\n");
 		return;
 	}
 	bootcontentloaded = (ret == 1);
@@ -960,12 +977,12 @@ void bootTitle(u64 titleid)
 	
 	free(dolbuffer);
 
-	printf(".dol loaded\n");
+	Print(".dol loaded\n");
 
 	ret = identify(titleid, &requested_ios);
 	if (ret < 0)
 	{
-		printf("Identify failed\n");
+		Print("Identify failed\n");
 		return;
 	}
 	
@@ -976,16 +993,16 @@ void bootTitle(u64 titleid)
 
 	if (entryPoint != 0x3400)
 	{
-		printf("Setting bus speed\n");
+		Print("Setting bus speed\n");
 		*(u32*)0x800000F8 = 0x0E7BE2C0;
-		printf("Setting cpu speed\n");
+		Print("Setting cpu speed\n");
 		*(u32*)0x800000FC = 0x2B73A840;
 
 		DCFlushRange((void*)0x800000F8, 0xFF);
 	}
 	
 	// Remove 002 error
-	printf("Fake IOS Version(%u)\n", requested_ios);
+	Print("Fake IOS Version(%u)\n", requested_ios);
 	*(u16 *)0x80003140 = requested_ios;
 	*(u16 *)0x80003142 = 0xffff;
 	*(u16 *)0x80003188 = requested_ios;
@@ -997,10 +1014,10 @@ void bootTitle(u64 titleid)
 	ret = ES_SetUID(titleid);
 	if (ret < 0)
 	{
-		printf("ES_SetUID failed %d", ret);
+		Print("ES_SetUID failed %d", ret);
 		return;
 	}	
-	printf("ES_SetUID successful\n");
+	Print("ES_SetUID successful\n");
 	
 	
 	if (hooktypeoption != 0)
@@ -1011,11 +1028,14 @@ void bootTitle(u64 titleid)
 	
 	patch_dol(bootcontentloaded);
 
-	printf("Loading complete, booting...\n");
+	Print("Loading complete, booting...\n");
 
 	appJump = (entrypoint)entryPoint;
 
-	//sleep(5);
+	if (!get_silent())
+	{
+		sleep(3);
+	}
 
 	setVideoMode();
 	
@@ -1075,6 +1095,8 @@ void bootTitle(u64 titleid)
 
 void show_menu()
 {
+	ISFS_Initialize();
+	
 	int i;
 	u32 pressed;
 	u32 pressedGC;
@@ -1094,26 +1116,41 @@ void show_menu()
 	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 	char *bootmethodoptions[2] = { "Normal boot method", "Load apploader" };
 
-	u64 TitleIds[255];
-	char *TitleNames[255];
-
 	char **TitleStrings;
 	u32 Titlecount;
 	
-	printf("\nLoading...");
+	Print("\nLoading...");
 
 	ret = get_game_list(&TitleStrings, &Titlecount);
 	if (ret < 0)
 	{
-		printf("Error getting the title list\n");
+		Print("Error getting the title list\n");
 		return;
 	}
 	if (Titlecount == 0)
 	{
-		printf("No titles found\n");
+		Print("No titles found\n");
 		return;
 	}
-	printf("...");
+	Print("...");
+	
+	u64 *TitleIds = malloc(sizeof(u64) * Titlecount);
+
+	if (TitleIds == NULL)
+	{
+		Print("\nOut of memory\n");
+		return;	
+	}
+
+	char **TitleNames = malloc(sizeof(char *) * Titlecount);
+
+	if (TitleNames == NULL)
+	{
+		free(TitleIds);
+		Print("\nOut of memory\n");
+		return;	
+	}
+	Print("...");
 	
 	optioncount[1] = Titlecount;
 	char **optiontext[menuitems] = { start, TitleNames, videooptions, videopatchoptions, languageoptions, hooktypeoptions, ocarinaoptions, debuggeroptions, bootmethodoptions };
@@ -1122,29 +1159,29 @@ void show_menu()
 	{
 	    TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
         TitleNames[i] = get_name(TitleIds[i]);		
-		printf(".");
+		Print(".");
 	}	
 
 	while (true)
 	{
-		printf("\x1b[2J");
+		Print("\x1b[2J");
 		
 		printheadline();
-		printf("\n");
+		Print("\n");
 		
 		for (i = 0; i < menuitems; i++)
 		{
 			set_highlight(selection == i);
 			if (optiontext[i][optionselected[i]] == NULL)
             {
-				printf("???\n");
+				Print("???\n");
             } else
 			{
-				printf("%s\n", optiontext[i][optionselected[i]]);
+				Print("%s\n", optiontext[i][optionselected[i]]);
             }
 			set_highlight(false);
 		}
-		printf("\n");
+		Print("\n");
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
@@ -1204,15 +1241,20 @@ void show_menu()
 				debuggeroption = optionselected[7];				
 				bootmethodoption = optionselected[8];				
 				
+				free(TitleIds);
+				free(TitleNames);
+				
 				bootTitle(TitleIds[optionselected[1]]);
-				printf("Press any button to continue\n");
 				waitforbuttonpress(NULL, NULL);
+				return;
 			}
 		}
 		
 		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
 		{
-			printf("Exiting...\n");
+			free(TitleIds);
+			free(TitleNames);
+			Print("Exiting...\n");
 			return;
 		}	
 	}	
@@ -1236,24 +1278,24 @@ void show_nand_menu()
 
 	while (true)
 	{
-		printf("\x1b[2J");
+		Print("\x1b[2J");
 		
 		printheadline();
-		printf("\n");
+		Print("\n");
 		
 		for (i = 0; i < nandmenuitems; i++)
 		{
 			set_highlight(selection == i);
 			if (optiontext[i][optionselected[i]] == NULL)
             {
-                printf("???\n");
+                Print("???\n");
             } else
 			{
-				printf("%s\n", optiontext[i][optionselected[i]]);
+				Print("%s\n", optiontext[i][optionselected[i]]);
             }
 			set_highlight(false);
 		}
-		printf("\n");
+		Print("\n");
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
@@ -1308,12 +1350,10 @@ void show_nand_menu()
 				ret = 0;
 				if (optionselected[0] == 1)
 				{
-					exitworks = false;
 					ret = Enable_Emu(EMU_SD);
 				} else
 				if (optionselected[0] == 2)
 				{
-					exitworks = false;
 					ret = Enable_Emu(EMU_USB);
 				}
 				if (ret < 0)
@@ -1328,7 +1368,7 @@ void show_nand_menu()
 		
 		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
 		{
-			printf("Exiting...\n");
+			Print("Exiting...\n");
 			return;
 		}	
 	}	
@@ -1338,7 +1378,71 @@ void show_nand_menu()
 int main(int argc, char* argv[])
 {
 	exitworks = (*(u32*)0x80001800);
-	videoInit();
+	int ret;
+
+	if (argc == 11 && argv != NULL)
+	{
+		/*
+			title id
+			IOS
+			0 no nand emu	1 sd nand emu	2 usb nand emu
+			0 debug	1 silent
+			0 Default Video Mode	1 NTSC480i	2 NTSC480p	3 PAL480i	4 PAL480p	5 PAL576i	6 MPAL480i	7 MPAL480p
+			-1 Default Language	0 Japanese	1 English	2 German	3 French	4 Spanish	5 Italian	6 Dutch	7 S. Chinese	8 T. Chinese	9 Korean
+			0 No Video patches	1 Smart Video patching	2 More Video patching	3 Full Video patching
+			0 No Ocarina&debugger	1 Hooktype: VBI	2 Hooktype: KPAD	3 Hooktype: Joypad	4 Hooktype: GXDraw	5 Hooktype: GXFlush	6 Hooktype: OSSleepThread	7 Hooktype: AXNextFrame
+			0 No debugger	1 Debugger enabled
+			0 No Ocarina	1 Ocarina from SD	2 Ocarina from USB" };
+			0 Normal boot method	1 Load apploader
+		*/
+
+		Print("Loading cIOS...\n");
+		
+		IOS_ReloadIOS(strtol(argv[1],NULL,10));
+
+		if (strtol(argv[3],NULL,10) == 0)
+		{
+			videoInit(false);
+		} else
+		{
+			set_silent(true);
+		}
+	
+		if (strtol(argv[2],NULL,10) != 0)
+		{
+			Print("Starting nand emu...\n");
+			if (strtol(argv[2],NULL,10) == 1)
+			{
+				ret = Enable_Emu(EMU_SD);
+			} else
+			{
+				ret = Enable_Emu(EMU_USB);
+			}
+			if (ret < 0)
+			{
+				Print("Starting nand emu failed\n");
+				sleep(10);
+				reboot();
+			}
+		}		
+		
+		ISFS_Initialize();
+
+		videooption = strtol(argv[4],NULL,10);
+		languageoption = strtol(argv[5],NULL,10);
+		videopatchoption = strtol(argv[6],NULL,10);
+		hooktypeoption = strtol(argv[7],NULL,10);
+		debuggeroption = strtol(argv[8],NULL,10);
+		ocarinaoption = strtol(argv[9],NULL,10);
+		bootmethodoption = strtol(argv[10],NULL,10);
+
+		Print("Booting title %s...\n", argv[0]);
+		bootTitle((u64)(0x0001000100000000ULL + (u32)argv[0]));
+		sleep(10);
+		reboot();
+	}	
+	
+	videoInit(true);
 	
 	DrawBackground(rmode);
 	
@@ -1357,8 +1461,6 @@ int main(int argc, char* argv[])
 	WPAD_Init();
 	WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);					
 
-	ISFS_Initialize();
-
 	Set_Config_to_Defaults();
 	
 	if (IOS_GetVersion() == 249 && IOS_GetRevision() == 14)
@@ -1369,12 +1471,10 @@ int main(int argc, char* argv[])
 		show_menu();
 	}
 	
-	printf("Press any button\n");
+	Print("Press any button\n");
 	waitforbuttonpress(NULL, NULL);
 	
-	if (!exitworks)
-	{
-		SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
-	}
+	reboot();
+	
 	return 0;
 }
