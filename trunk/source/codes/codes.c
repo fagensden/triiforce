@@ -175,8 +175,8 @@ void load_handler()
 						*(u32*)0x80002798 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
-					memcpy((void*)0x80001F7E, &codelist, 2);
-					memcpy((void*)0x80001F82, ((u8*) &codelist) + 2, 2);
+					memcpy((void*)0x80001F5A, &codelist, 2);
+					memcpy((void*)0x80001F5E, ((u8*) &codelist) + 2, 2);
 					DCFlushRange((void*)0x80001800,codehandlerslota_size);
 					break;
 					
@@ -187,8 +187,8 @@ void load_handler()
 						*(u32*)0x80002798 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
-					memcpy((void*)0x80001F7E, &codelist, 2);
-					memcpy((void*)0x80001F82, ((u8*) &codelist) + 2, 2);
+					memcpy((void*)0x80001F5A, &codelist, 2);
+					memcpy((void*)0x80001F5E, ((u8*) &codelist) + 2, 2);
 					DCFlushRange((void*)0x80001800,codehandler_size);
 					break;
 					
@@ -199,8 +199,8 @@ void load_handler()
 						*(u32*)0x80002798 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
-					memcpy((void*)0x80001F7E, &codelist, 2);
-					memcpy((void*)0x80001F82, ((u8*) &codelist) + 2, 2);
+					memcpy((void*)0x80001F5A, &codelist, 2);
+					memcpy((void*)0x80001F5E, ((u8*) &codelist) + 2, 2);
 					DCFlushRange((void*)0x80001800,codehandler_size);
 					break;
 			}
@@ -281,7 +281,7 @@ void do_codes(u64 titleid)
 	if (debuggeroption == 0x00)
 		codelist = (u8 *) 0x800022A8;
 	else
-		codelist = (u8 *) 0x800028E0;
+		codelist = (u8 *) 0x800028B8;
 
 	load_handler();
 	memcpy((void *)0x80001800, gameidbuffer, 6);
