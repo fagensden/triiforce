@@ -25,6 +25,8 @@
 
 #include "main.h"
 #include "tools.h"
+#include "isfs.h"
+#include "name.h"
 #include "lz77.h"
 #include "u8.h"
 #include "config.h"
@@ -88,13 +90,6 @@ typedef struct _dolheader
 } dolheader;
 
 
-typedef struct _dirent
-{
-	char name[ISFS_MAXPATH + 1];
-	int type;
-} dirent_t;
-
-
 void videoInit(bool banner)
 {
 	VIDEO_Init();
@@ -133,71 +128,8 @@ void videoInit(bool banner)
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 }
 
-s32 __FileCmp(const void *a, const void *b)
-{
-	dirent_t *hdr1 = (dirent_t *)a;
-	dirent_t *hdr2 = (dirent_t *)b;
-	
-	if (hdr1->type == hdr2->type)
-	{
-		return strcmp(hdr1->name, hdr2->name);
-	} else
-	{
-		return 0;
-	}
-}
 
-s32 getdir(char *path, dirent_t **ent, u32 *cnt)
-{
-	s32 res;
-	u32 num = 0;
-
-	int i, j, k;
-	
-	res = ISFS_ReadDir(path, NULL, &num);
-	if(res != ISFS_OK)
-	{
-		Print("Error: could not get dir entry count! (result: %d)\n", res);
-		return -1;
-	}
-
-	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
-	char ebuf[ISFS_MAXPATH + 1];
-
-	if(nbuf == NULL)
-	{
-		Print("Error: could not allocate buffer for name list!\n");
-		return -2;
-	}
-
-	res = ISFS_ReadDir(path, nbuf, &num);
-	if(res != ISFS_OK)
-	{
-		Print("Error: could not get name list! (result: %d)\n", res);
-		return -3;
-	}
-	
-	*cnt = num;
-	
-	*ent = allocate_memory(sizeof(dirent_t) * num);
-
-	for(i = 0, k = 0; i < num; i++)
-	{	    
-		for(j = 0; nbuf[k] != 0; j++, k++)
-			ebuf[j] = nbuf[k];
-		ebuf[j] = 0;
-		k++;
-
-		strcpy((*ent)[i].name, ebuf);
-	}
-	
-	qsort(*ent, *cnt, sizeof(dirent_t), __FileCmp);
-	
-	free(nbuf);
-	return 0;
-}
-
-s32 get_game_list(char ***TitleIds, u32 *num)
+s32 get_game_list(u64 **TitleIds, u32 *num)
 {
 	int ret;
 	u32 maxnum;
@@ -207,14 +139,15 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 	dirent_t *templist;
     char path[ISFS_MAXPATH];
     sprintf(path, "/title/00010001");
-    ret = getdir(path, &list, &maxnum);
-    if (ret < 0)
+ 
+	ret = getdir(path, &list, &maxnum);
+	if (ret < 0)
 	{
-		Print("Reading folder /title/00010001 failed\n");
+		Print("Reading folder %s failed\n", path);
 		return ret;
 	}
 
-	char **temp = allocate_memory(maxnum*4);
+	u64 *temp = malloc(sizeof(u64) * maxnum);
 	if (temp == NULL)
 	{
 		free(list);
@@ -234,16 +167,14 @@ s32 get_game_list(char ***TitleIds, u32 *num)
 			// Dirty workaround, ISFS_ReadDir does not work properly on nand emu
 			templist = NULL;
 			ret = getdir(path, &templist, &number);	
-			if (ret >= 0 && templist != NULL)
+			if (templist != NULL)
 			{
 				free(templist);
 			}
 			
 			if (ret >= 0 && number > 1) // 1 == tmd only
 			{
-				temp[tempnum] = allocate_memory(10);
-				memset(temp[tempnum], 0x00, 10);
-				memcpy(temp[tempnum], list[i].name, 8);	
+				temp[tempnum] = TITLE_ID(0x00010001, strtol(list[i].name,NULL,16));
 				tempnum++;		
 			}
 		}
@@ -728,232 +659,6 @@ void setVideoMode()
 	if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
 
-bool check_text(char *s) 
-{
-    int i = 0;
-    for(i=0; i < strlen(s); i++)
-    {
-        if (s[i] < 32 || s[i] > 165)
-		{
-			return false;
-		}
-	}  
-
-	return true;
-}
-
-char *read_name_from_banner_app(u64 titleid)
-{
-	s32 cfd;
-    s32 ret;
-	u32 num;
-	dirent_t *list;
-    char contentpath[ISFS_MAXPATH];
-    char path[ISFS_MAXPATH];
-	int i;
-    int length;
-    u32 cnt = 0;
-	char *out;
-	u8 *buffer = allocate_memory(800);
-	   
-	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	
-    ret = getdir(contentpath, &list, &num);
-    if (ret < 0)
-	{
-		Print("Reading folder of the title failed\n");
-		free(buffer);
-		return NULL;
-	}
-	
-	u8 imet[4] = {0x49, 0x4D, 0x45, 0x54};
-	for(cnt=0; cnt < num; cnt++)
-    {        
-        if (strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
-        {
-			memset(buffer, 0x00, 800);
-            sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
-  
-            cfd = ISFS_Open(path, ISFS_OPEN_READ);
-            if (cfd < 0)
-			{
-	    	    Print("ISFS_OPEN for %s failed %d\n", path, cfd);
-				continue;
-			}
-			
-            ret = ISFS_Read(cfd, buffer, 800);
-	        if (ret < 0)
-	        {
-	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
-		        ISFS_Close(cfd);
-				continue;
-	        }
-
-            ISFS_Close(cfd);	
-              
-			if(memcmp((buffer+0x80), imet, 4) == 0)
-			{
-				length = 0;
-				i = 0;
-				while(buffer[0xF1 + i*2] != 0x00)
-				{
-					length++;
-					i++;
-				}
-				
-				out = allocate_memory(length+10);
-				if(out == NULL)
-				{
-					Print("Allocating memory for buffer failed\n");
-					free(buffer);
-					return NULL;
-				}
-				memset(out, 0x00, length+10);
-				
-				i = 0;
-				while(buffer[0xF1 + i*2] != 0x00)
-				{
-					out[i] = (char) buffer[0xF1 + i*2];
-					i++;
-				}				
-				
-				free(buffer);
-				free(list);
-				
-				return out;
-			}
-			    
-        }
-    }
-	
-	free(buffer);
-	free(list);
-	
-	return NULL;
-}
-
-char *read_name_from_banner_bin(u64 titleid)
-{
-	s32 cfd;
-    s32 ret;
-    char path[ISFS_MAXPATH];
-	int i;
-    int length;
-	char *out;
-	u8 *buffer = allocate_memory(160);
-   
-	// Try to read from banner.bin first
-	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-  
-	cfd = ISFS_Open(path, ISFS_OPEN_READ);
-	if (cfd < 0)
-	{
-		//Print("ISFS_OPEN for %s failed %d\n", path, cfd);
-		return NULL;
-	} else
-	{
-	    ret = ISFS_Read(cfd, buffer, 160);
-	    if (ret < 0)
-	    {
-			Print("ISFS_Read for %s failed %d\n", path, ret);
-		    ISFS_Close(cfd);
-			free(buffer);
-			return NULL;
-		}
-
-		ISFS_Close(cfd);	
-
-		length = 0;
-		i = 0;
-		while(buffer[0x21 + i*2] != 0x00)
-		{
-			length++;
-			i++;
-		}
-		out = allocate_memory(length+10);
-		if(out == NULL)
-		{
-			Print("Allocating memory for buffer failed\n");
-			free(buffer);
-			return NULL;
-		}
-		memset(out, 0x00, length+10);
-		
-		i = 0;
-		while (buffer[0x21 + i*2] != 0x00)
-		{
-			out[i] = (char) buffer[0x21 + i*2];
-			i++;
-		}
-		
-		free(buffer);
-
-		return out;		
-	}
- 	
-	free(buffer);
-	
-	return NULL;
-}
-
-char *get_name(u64 titleid)
-{
-	char *temp;
-	u32 low;
-	low = TITLE_LOWER(titleid);
-
-	temp = read_name_from_banner_bin(titleid);
-	if (temp == NULL || !check_text(temp))
-	{
-		temp = read_name_from_banner_app(titleid);
-	}
-	
-	if (temp != NULL)
-	{
-		if (*(char *)&low == 'W')
-		{
-			return temp;
-		}
-		switch(low & 0xFF)
-		{
-			case 'E':
-				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
-				break;
-			case 'P':
-				memcpy(temp+strlen(temp), " (PAL)", 6);
-				break;
-			case 'J':
-				memcpy(temp+strlen(temp), " (NTSC-J)", 9);
-				break;	
-			case 'L':
-				memcpy(temp+strlen(temp), " (PAL)", 6);
-				break;	
-			case 'N':
-				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
-				break;		
-			case 'M':
-				memcpy(temp+strlen(temp), " (PAL)", 6);
-				break;
-			case 'K':
-				memcpy(temp+strlen(temp), " (NTSC)", 7);
-				break;
-			default:
-				break;
-				
-		}
-	}
-	
-	if (temp == NULL)
-	{
-		temp = malloc(6);
-		memset(temp, 0, 6);
-		memcpy(temp, (char *)(&low), 4);
-	}
-	
-	return temp;
-}
-
-
 void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
@@ -1116,17 +821,19 @@ void show_menu()
 	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 	char *bootmethodoptions[2] = { "Normal boot method", "Load apploader" };
 
-	char **TitleStrings;
 	u32 Titlecount;
 	
 	Print("\nLoading...");
 
-	ret = get_game_list(&TitleStrings, &Titlecount);
+	u64 *TitleIds;
+
+	ret = get_game_list(&TitleIds, &Titlecount);
 	if (ret < 0)
 	{
 		Print("Error getting the title list\n");
 		return;
 	}
+
 	if (Titlecount == 0)
 	{
 		Print("No titles found\n");
@@ -1134,14 +841,6 @@ void show_menu()
 	}
 	Print("...");
 	
-	u64 *TitleIds = malloc(sizeof(u64) * Titlecount);
-
-	if (TitleIds == NULL)
-	{
-		Print("\nOut of memory\n");
-		return;	
-	}
-
 	char **TitleNames = malloc(sizeof(char *) * Titlecount);
 
 	if (TitleNames == NULL)
@@ -1157,7 +856,6 @@ void show_menu()
 
 	for (i = 0; i < Titlecount; i++)
 	{
-	    TitleIds[i] = TITLE_ID(0x00010001, strtol(TitleStrings[i],NULL,16));
         TitleNames[i] = get_name(TitleIds[i]);		
 		Print(".");
 	}	

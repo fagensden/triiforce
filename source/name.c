@@ -1,0 +1,226 @@
+#include <gccore.h>
+#include <string.h>
+#include <malloc.h>
+#include <stdio.h>
+
+#include "tools.h"
+#include "isfs.h"
+
+
+bool check_text(char *s) 
+{
+    int i = 0;
+    for(i=0; i < strlen(s); i++)
+    {
+        if (s[i] < 32 || s[i] > 165)
+		{
+			return false;
+		}
+	}  
+
+	return true;
+}
+
+char *get_name_from_banner_buffer(u8 *buffer)
+{
+	char *out;
+	u32 length = 0;
+	u32 i = 0;
+	while (buffer[0x21 + i*2] != 0x00)
+	{
+		length++;
+		i++;
+	}
+	out = malloc(length+12);
+	if(out == NULL)
+	{
+		Print("Allocating memory for buffer failed\n");
+		return NULL;
+	}
+	memset(out, 0x00, length+12);
+	
+	i = 0;
+	while (buffer[0x21 + i*2] != 0x00)
+	{
+		out[i] = (char) buffer[0x21 + i*2];
+		i++;
+	}
+	return out;
+}
+
+char *read_name_from_banner_app(u64 titleid)
+{
+	s32 cfd;
+    s32 ret;
+	u32 num;
+	dirent_t *list;
+    char contentpath[ISFS_MAXPATH];
+    char path[ISFS_MAXPATH];
+    u32 cnt = 0;
+	u8 *buffer = allocate_memory(368);
+	if (buffer == NULL)
+	{
+		Print("Allocating memory for buffer failed\n");
+		return NULL;
+	}
+   
+	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+	
+    ret = getdir(contentpath, &list, &num);
+    if (ret < 0)
+	{
+		Print("Reading folder of the title failed\n");
+		free(buffer);
+		return NULL;
+	}
+	
+	u8 imet[4] = {0x49, 0x4D, 0x45, 0x54};
+	for (cnt=0; cnt < num; cnt++)
+    {        
+        if (strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
+        {
+			memset(buffer, 0x00, 368);
+            sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
+  
+            cfd = ISFS_Open(path, ISFS_OPEN_READ);
+            if (cfd < 0)
+			{
+	    	    Print("ISFS_OPEN for %s failed %d\n", path, cfd);
+				continue;
+			}
+			
+            ret = ISFS_Read(cfd, buffer, 368);
+	        if (ret < 0)
+	        {
+	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
+		        ISFS_Close(cfd);
+				continue;
+	        }
+
+            ISFS_Close(cfd);	
+
+			if (memcmp((buffer+0x80), imet, 4) == 0)
+			{
+				char *out = get_name_from_banner_buffer((void *)((u32)buffer+208));
+				if (out == NULL)
+				{
+					free(buffer);
+					free(list);
+					return NULL;
+				}
+				
+				free(buffer);
+				free(list);
+				
+				return out;
+			}   
+        }
+    }
+	
+	free(buffer);
+	free(list);
+	
+	return NULL;
+}
+
+char *read_name_from_banner_bin(u64 titleid)
+{
+	s32 cfd;
+    s32 ret;
+    char path[ISFS_MAXPATH];
+	u8 *buffer = allocate_memory(160);
+	if (buffer == NULL)
+	{
+		Print("Allocating memory for buffer failed\n");
+		return NULL;
+	}
+   
+	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+  
+	cfd = ISFS_Open(path, ISFS_OPEN_READ);
+	if (cfd < 0)
+	{
+		//Print("ISFS_OPEN for %s failed %d\n", path, cfd);
+		free(buffer);
+		return NULL;
+	}
+
+    ret = ISFS_Read(cfd, buffer, 160);
+    if (ret < 0)
+    {
+		Print("ISFS_Read for %s failed %d\n", path, ret);
+	    ISFS_Close(cfd);
+		free(buffer);
+		return NULL;
+	}
+
+	ISFS_Close(cfd);	
+
+	char *out = get_name_from_banner_buffer(buffer);
+	if (out == NULL)
+	{
+		free(buffer);
+		return NULL;
+	}
+	
+	free(buffer);
+
+	return out;		
+}
+
+char *get_name(u64 titleid)
+{
+	char *temp;
+	u32 low;
+	low = TITLE_LOWER(titleid);
+
+	temp = read_name_from_banner_bin(titleid);
+	if (temp == NULL || !check_text(temp))
+	{
+		temp = read_name_from_banner_app(titleid);
+	}
+	
+	if (temp != NULL)
+	{
+		if (*(char *)&low == 'W')
+		{
+			return temp;
+		}
+		switch(low & 0xFF)
+		{
+			case 'E':
+				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
+				break;
+			case 'P':
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;
+			case 'J':
+				memcpy(temp+strlen(temp), " (NTSC-J)", 9);
+				break;	
+			case 'L':
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;	
+			case 'N':
+				memcpy(temp+strlen(temp), " (NTSC-U)", 9);
+				break;		
+			case 'M':
+				memcpy(temp+strlen(temp), " (PAL)", 6);
+				break;
+			case 'K':
+				memcpy(temp+strlen(temp), " (NTSC)", 7);
+				break;
+			default:
+				break;
+				
+		}
+	}
+	
+	if (temp == NULL)
+	{
+		temp = malloc(6);
+		memset(temp, 0, 6);
+		memcpy(temp, (char *)(&low), 4);
+	}
+	
+	return temp;
+}
