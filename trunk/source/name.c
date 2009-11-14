@@ -177,6 +177,7 @@ char *get_name(u64 titleid)
 	temp = read_name_from_banner_bin(titleid);
 	if (temp == NULL || !check_text(temp))
 	{
+		if (temp != NULL) free(temp);
 		temp = read_name_from_banner_app(titleid);
 	}
 	
