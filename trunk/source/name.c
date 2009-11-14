@@ -14,7 +14,8 @@ bool check_text(char *s)
     {
         if (s[i] < 32 || s[i] > 165)
 		{
-			return false;
+			s[i] = '?';
+			//return false;
 		}
 	}  
 
@@ -24,13 +25,13 @@ bool check_text(char *s)
 char *get_name_from_banner_buffer(u8 *buffer)
 {
 	char *out;
-	u32 length = 0;
+	u32 length;
 	u32 i = 0;
 	while (buffer[0x21 + i*2] != 0x00)
 	{
-		length++;
 		i++;
 	}
+	length = i;
 	out = malloc(length+12);
 	if(out == NULL)
 	{
@@ -175,14 +176,15 @@ char *get_name(u64 titleid)
 	low = TITLE_LOWER(titleid);
 
 	temp = read_name_from_banner_bin(titleid);
-	if (temp == NULL || !check_text(temp))
+	if (temp == NULL)
 	{
-		if (temp != NULL) free(temp);
 		temp = read_name_from_banner_app(titleid);
 	}
 	
 	if (temp != NULL)
 	{
+		check_text(temp);
+
 		if (*(char *)&low == 'W')
 		{
 			return temp;
@@ -211,8 +213,7 @@ char *get_name(u64 titleid)
 				memcpy(temp+strlen(temp), " (NTSC)", 7);
 				break;
 			default:
-				break;
-				
+				break;				
 		}
 	}
 	
