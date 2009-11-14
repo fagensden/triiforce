@@ -50,15 +50,17 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 	if(res != ISFS_OK)
 	{
 		Print("Error: could not get name list! (result: %d)\n", res);
+		free(nbuf);
 		return -3;
 	}
 	
 	*cnt = num;
 	
-	*ent = allocate_memory(sizeof(dirent_t) * num);
+	*ent = malloc(sizeof(dirent_t) * num);
 	if (*ent == NULL)
 	{
 		Print("Error: could not allocate buffer\n");
+		free(nbuf);
 		return -4;
 	}	
 
