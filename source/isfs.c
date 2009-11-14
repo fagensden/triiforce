@@ -37,9 +37,9 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 		return -1;
 	}
 
-	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
 	char ebuf[ISFS_MAXPATH + 1];
 
+	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
 	if(nbuf == NULL)
 	{
 		Print("Error: could not allocate buffer for name list!\n");

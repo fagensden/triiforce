@@ -197,18 +197,18 @@ int isLZ77compressed(u8 *buffer)
 	return 0;
 }
  
-int decompressLZ77content(u8 *buffer, u32 lenght, u8 **output, u32 *outputLen)
+int decompressLZ77content(u8 *buffer, u32 length, u8 **output, u32 *outputLen)
 {
     int ret;
 	switch (buffer[0])
     {
         case LZ77_0x10_FLAG:
             Print("LZ77 variant 0x10 compressed content...unpacking may take a while...\n");
-            ret = __decompressLZ77_10(buffer, lenght, output, outputLen);
+            ret = __decompressLZ77_10(buffer, length, output, outputLen);
 			break;
         case LZ77_0x11_FLAG:
             Print("LZ77 variant 0x11 compressed content...unpacking may take a while...\n");
-            ret = __decompressLZ77_11(buffer, lenght, output, outputLen);
+            ret = __decompressLZ77_11(buffer, length, output, outputLen);
 			break;
         default:
             Print("Not compressed ...\n");

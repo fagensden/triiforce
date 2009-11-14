@@ -203,7 +203,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	u32 size_out = 0;
 	u32 decomp_size = 0;
 	
-    u8 *buffer = malloc(8);
+    u8 *buffer = memalign(32, 32);
 	if (buffer == NULL)
 	{
 		Print("Out of memory\n");
@@ -224,7 +224,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
     {        
         if ((strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) && (strtol(list[cnt].name, NULL, 16) != bootcontent))
         {			
-			memset(buffer, 0x00, 8);
+			memset(buffer, 0x00, 32);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
             cfd = ISFS_Open(path, ISFS_OPEN_READ);
@@ -234,7 +234,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 				continue; 
 			}
 
-            ret = ISFS_Read(cfd, buffer, 7);
+            ret = ISFS_Read(cfd, buffer, 32);
 	        if (ret < 0)
 	        {
 	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
@@ -258,8 +258,8 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 				if (ret < 0)
 				{
 					Print("Reading file failed\n");
-					free(buffer);
 					free(list);
+					free(buffer);
 					return ret;
 				}
 				Print("read file\n");
@@ -267,8 +267,8 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 				if (ret < 0)
 				{
 					Print("Decompressing failed\n");
-					free(buffer);
 					free(list);
+					free(buffer);
 					return ret;
 				}				
 				memcpy(buffer, decompressed, 8);
@@ -586,6 +586,7 @@ void determineVideoMode(u64 titleid)
 
 				case 'E':
 				case 'J':
+				case 'T':
 					if (CONF_GetVideo() != CONF_VIDEO_NTSC)
 					{
 						Video_Mode = VI_NTSC;
@@ -933,10 +934,12 @@ void show_menu()
 				debuggeroption = optionselected[7];				
 				bootmethodoption = optionselected[8];				
 				
-				free(TitleIds);
 				free(TitleNames);
-				
+
 				bootTitle(TitleIds[optionselected[1]]);
+
+				free(TitleIds);
+
 				return;
 			}
 		}
