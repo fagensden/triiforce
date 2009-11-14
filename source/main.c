@@ -1245,7 +1245,6 @@ void show_menu()
 				free(TitleNames);
 				
 				bootTitle(TitleIds[optionselected[1]]);
-				waitforbuttonpress(NULL, NULL);
 				return;
 			}
 		}
@@ -1463,7 +1462,7 @@ int main(int argc, char* argv[])
 
 	Set_Config_to_Defaults();
 	
-	if (IOS_GetVersion() == 249 && IOS_GetRevision() == 14)
+	if (IOS_GetVersion() == 249 && IOS_GetRevision() >= 14)
 	{
 		show_nand_menu();
 	} else
