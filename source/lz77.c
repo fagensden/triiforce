@@ -50,7 +50,7 @@ s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
  
     Print("Decompressed size : %i\n", decompressedSize);
  
-    out = allocate_memory(decompressedSize);
+    out = malloc(decompressedSize);
 	if (out == NULL)
 	{
 		Print("Out of memory\n");
@@ -137,7 +137,7 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	 
 	Print("Decompressed size : %i\n", decompressedSize);
 	 
-	out = allocate_memory(decompressedSize);
+	out = malloc(decompressedSize);
 	if (out == NULL)
 	{
 		Print("Out of memory\n");

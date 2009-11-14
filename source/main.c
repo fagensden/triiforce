@@ -28,7 +28,6 @@
 #include "isfs.h"
 #include "name.h"
 #include "lz77.h"
-#include "u8.h"
 #include "config.h"
 #include "patch.h"
 #include "codes/codes.h"
@@ -204,9 +203,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	u32 size_out = 0;
 	u32 decomp_size = 0;
 	
-	
-
-    u8 *buffer = allocate_memory(8);
+    u8 *buffer = malloc(8);
 	if (buffer == NULL)
 	{
 		Print("Out of memory\n");
@@ -723,7 +720,6 @@ void bootTitle(u64 titleid)
 		return;
 	}	
 	Print("ES_SetUID successful\n");
-	
 	
 	if (hooktypeoption != 0)
 	{

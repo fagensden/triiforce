@@ -12,7 +12,6 @@ More info : http://frontier-dev.net
 #include <gccore.h>
 #include "pngu.h"
 #include "../png.h"
-#include "../../tools.h"
 
 
 // Constants
@@ -60,7 +59,7 @@ IMGCTX PNGU_SelectImageFromBuffer (const void *buffer)
 	if (!buffer)
 		return NULL;
 
-	ctx = allocate_memory (sizeof (struct _IMGCTX));
+	ctx = malloc (sizeof (struct _IMGCTX));
 	if (!ctx)
 		return NULL;
 
@@ -82,7 +81,7 @@ IMGCTX PNGU_SelectImageFromDevice (const char *filename)
 	if (!filename)
 		return NULL;
 
-	ctx = allocate_memory (sizeof (struct _IMGCTX));
+	ctx = malloc (sizeof (struct _IMGCTX));
 	if (!ctx)
 		return NULL;
 
@@ -90,7 +89,7 @@ IMGCTX PNGU_SelectImageFromDevice (const char *filename)
 	ctx->source = PNGU_SOURCE_DEVICE;
 	ctx->cursor = 0;
 
-	ctx->filename = allocate_memory (strlen (filename) + 1);
+	ctx->filename = malloc (strlen (filename) + 1);
 	if (!ctx->filename)
 	{
 		free (ctx);
@@ -746,7 +745,7 @@ int PNGU_EncodeFromYCbYCr (IMGCTX ctx, PNGU_u32 width, PNGU_u32 height, void *bu
 	if (rowbytes % 4)
 		rowbytes = ((rowbytes / 4) + 1) * 4; // Add extra padding so each row starts in a 4 byte boundary
 
-	ctx->img_data = allocate_memory (rowbytes * height);
+	ctx->img_data = malloc (rowbytes * height);
 	if (!ctx->img_data)
 	{
 		png_destroy_write_struct (&(ctx->png_ptr), (png_infopp)NULL);
@@ -755,7 +754,7 @@ int PNGU_EncodeFromYCbYCr (IMGCTX ctx, PNGU_u32 width, PNGU_u32 height, void *bu
 		return PNGU_LIB_ERROR;
 	}
 
-	ctx->row_pointers = allocate_memory (sizeof (png_bytep) * height);
+	ctx->row_pointers = malloc (sizeof (png_bytep) * height);
 	if (!ctx->row_pointers)
 	{
 		png_destroy_write_struct (&(ctx->png_ptr), (png_infopp)NULL);
@@ -971,7 +970,7 @@ int pngu_info (IMGCTX ctx)
 		{
 			if (ctx->prop.numTrans)
 			{
-				ctx->prop.trans = allocate_memory (sizeof (PNGUCOLOR) * ctx->prop.numTrans);
+				ctx->prop.trans = malloc (sizeof (PNGUCOLOR) * ctx->prop.numTrans);
 				if (ctx->prop.trans)
 					for (i = 0; i < ctx->prop.numTrans; i++)
 					{
@@ -988,7 +987,7 @@ int pngu_info (IMGCTX ctx)
 		{
 			if (ctx->prop.numTrans)
 			{
-				ctx->prop.trans = allocate_memory (sizeof (PNGUCOLOR) * ctx->prop.numTrans);
+				ctx->prop.trans = malloc (sizeof (PNGUCOLOR) * ctx->prop.numTrans);
 				if (ctx->prop.trans)
 					for (i = 0; i < ctx->prop.numTrans; i++)
 						ctx->prop.trans[i].r = ctx->prop.trans[i].g = ctx->prop.trans[i].b = 
@@ -1053,14 +1052,14 @@ int pngu_decode (IMGCTX ctx, PNGU_u32 width, PNGU_u32 height, PNGU_u32 stripAlph
 	if (rowbytes % 4)
 		rowbytes = ((rowbytes / 4) + 1) * 4; // Add extra padding so each row starts in a 4 byte boundary
 
-	ctx->img_data = allocate_memory (rowbytes * ctx->prop.imgHeight);
+	ctx->img_data = malloc (rowbytes * ctx->prop.imgHeight);
 	if (!ctx->img_data)
 	{
 		pngu_free_info (ctx);
 		return PNGU_LIB_ERROR;
 	}
 
-	ctx->row_pointers = allocate_memory (sizeof (png_bytep) * ctx->prop.imgHeight);
+	ctx->row_pointers = malloc (sizeof (png_bytep) * ctx->prop.imgHeight);
 	if (!ctx->row_pointers)
 	{
 		free (ctx->img_data);
