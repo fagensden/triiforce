@@ -527,8 +527,6 @@ void determineVideoMode(u64 titleid)
 {
 	if (videooption == 0)
 	{
-		char Region = (char)((u32)titleid % 256);
-		
 		// Get rmode and Video_Mode for system settings first
 		u32 tvmode = CONF_GetVideo();
 
@@ -561,9 +559,10 @@ void determineVideoMode(u64 titleid)
 		// Overwrite rmode and Video_Mode when Default Video Mode is selected and Wii region doesn't match the channel region
 		u32 low;
 		low = TITLE_LOWER(titleid);
+		char Region = low % 256;
 		if (*(char *)&low != 'W') // Don't overwrite video mode for WiiWare
 		{
-			switch (Region & 0xFF) 
+			switch (Region) 
 			{
 				case 'P':
 				case 'D':
@@ -587,7 +586,6 @@ void determineVideoMode(u64 titleid)
 
 				case 'E':
 				case 'J':
-				default:
 					if (CONF_GetVideo() != CONF_VIDEO_NTSC)
 					{
 						Video_Mode = VI_NTSC;
@@ -817,11 +815,10 @@ void show_menu()
 	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
 	char *bootmethodoptions[2] = { "Normal boot method", "Load apploader" };
 
-	u32 Titlecount;
-	
 	Print("\nLoading...");
 
 	u64 *TitleIds;
+	u32 Titlecount;
 
 	ret = get_game_list(&TitleIds, &Titlecount);
 	if (ret < 0)
@@ -835,16 +832,17 @@ void show_menu()
 		Print("No titles found\n");
 		return;
 	}
+	
 	Print("...");
 	
 	char **TitleNames = malloc(sizeof(char *) * Titlecount);
-
 	if (TitleNames == NULL)
 	{
 		free(TitleIds);
 		Print("\nOut of memory\n");
 		return;	
 	}
+	
 	Print("...");
 	
 	optioncount[1] = Titlecount;
