@@ -306,15 +306,18 @@ static u32					videomodecount;
 void search_video_modes(u8 *file, u32 size)
 {
 	videomodecount = 0;
+	u8 *Addr = file;
 
-    int i;
-	for (i = 0; i < size - sizeof(GXRModeObj); i+=4)
+	while ((u32)Addr < (u32)file+size-sizeof(GXRModeObj))
 	{
-		if (videomode_region((GXRModeObj*)&file[i]) != -1)
+		if (videomode_region((GXRModeObj*)Addr) != -1)
 		{
-			videomodes[videomodecount] = (GXRModeObj*)&file[i];
+			videomodes[videomodecount] = (GXRModeObj*)Addr;
 			videomodecount++;
-			i += sizeof(GXRModeObj) - 4;
+			Addr += sizeof(GXRModeObj);
+		} else
+		{
+			Addr += 4;
 		}
 	}
 }
