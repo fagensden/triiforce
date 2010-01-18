@@ -43,8 +43,6 @@ void*	dolchunkoffset[64];			//TODO: variable size
 u32		dolchunksize[64];			//TODO: variable size
 u32		dolchunkcount;
 
-bool exitworks;
-
 void _unstub_start();
 
 // Prevent IOS36 loading at startup
@@ -66,10 +64,7 @@ static void reset_cb()
 void reboot()
 {
 	Disable_Emu();
-	if (exitworks)
-	{
-		exit(0);
-	}
+	if (strncmp("STUBHAXX", (char *)0x80001804, 8) == 0) exit(0);
 	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
 }
 
@@ -722,7 +717,6 @@ void bootTitle(u64 titleid)
 	
 	if (hooktypeoption != 0)
 	{
-		exitworks = false;
 		do_codes(titleid);
 	}
 	
@@ -1071,7 +1065,6 @@ void show_nand_menu()
 
 int main(int argc, char* argv[])
 {
-	exitworks = (*(u32*)0x80001800);
 	int ret;
 
 	if (argc == 11 && argv != NULL)
