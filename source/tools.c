@@ -126,13 +126,50 @@ void waitforbuttonpress(u32 *out, u32 *outGC)
 	}
 }
 
+s32 Identify_GenerateTik(signed_blob **outbuf, u32 *outlen)
+{
+	signed_blob *buffer   = NULL;
+
+	sig_rsa2048 *signature = NULL;
+	tik         *tik_data  = NULL;
+
+	u32 len;
+
+	/* Set ticket length */
+	len = STD_SIGNED_TIK_SIZE;
+
+	/* Allocate memory */
+	buffer = (signed_blob *)memalign(32, len);
+	if (!buffer)
+		return -1;
+
+	/* Clear buffer */
+	memset(buffer, 0, len);
+
+	/* Generate signature */
+	signature       = (sig_rsa2048 *)buffer;
+	signature->type = ES_SIG_RSA2048;
+
+	/* Generate ticket */
+	tik_data  = (tik *)SIGNATURE_PAYLOAD(buffer);
+
+	strcpy(tik_data->issuer, "Root-CA00000001-XS00000003");
+	memset(tik_data->cidx_mask, 0xFF, 32);
+
+	/* Set values */
+	*outbuf = buffer;
+	*outlen = len;
+
+	return 0;
+}
+
 
 s32 identify(u64 titleid, u32 *ios)
 {
 	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
 	u8 *tmdBuffer = NULL;
 	u32 tmdSize;
-	u8 *tikBuffer = NULL;
+	signed_blob *tikBuffer = NULL;
 	u32 tikSize;
 	u8 *certBuffer = NULL;
 	u32 certSize;
@@ -153,9 +190,9 @@ s32 identify(u64 titleid, u32 *ios)
 
 	*ios = (u32)(tmdBuffer[0x18b]);
 
-	Print("Reading ticket...");
+	Print("Generating fake ticket...");
 	fflush(stdout);
-
+/*
 	sprintf(filepath, "/ticket/%08x/%08x.tik", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	ret = read_file(filepath, &tikBuffer, &tikSize);
 	if (ret < 0)
@@ -163,7 +200,8 @@ s32 identify(u64 titleid, u32 *ios)
 		Print("Reading ticket failed\n");
 		free(tmdBuffer);
 		return ret;
-	}
+	}*/
+	Identify_GenerateTik(&tikBuffer,&tikSize);
 	Print("done\n");
 
 	Print("Reading certs...");
@@ -183,7 +221,7 @@ s32 identify(u64 titleid, u32 *ios)
 	Print("ES_Identify...");
 	fflush(stdout);
 
-	ret = ES_Identify((signed_blob*)certBuffer, certSize, (signed_blob*)tmdBuffer, tmdSize, (signed_blob*)tikBuffer, tikSize, NULL);
+	ret = ES_Identify((signed_blob*)certBuffer, certSize, (signed_blob*)tmdBuffer, tmdSize, tikBuffer, tikSize, NULL);
 	if (ret < 0)
 	{
 		switch(ret)
