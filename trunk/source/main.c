@@ -649,7 +649,14 @@ void setVideoMode()
 	
 	if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
-
+void green_fix() //GREENSCREEN FIX
+{     
+    VIDEO_Configure(rmode);
+    VIDEO_SetNextFramebuffer(xfb);
+    VIDEO_SetBlack(TRUE);
+    VIDEO_Flush();
+    VIDEO_WaitVSync();
+}
 void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
@@ -732,6 +739,7 @@ void bootTitle(u64 titleid)
 	}
 
 	setVideoMode();
+	green_fix();
 	
 	WPAD_Shutdown();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
