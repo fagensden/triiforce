@@ -130,7 +130,6 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 	u32 tempnum = 0;
 	u32 number;
 	dirent_t *list = NULL;
-	dirent_t *templist;
     char path[ISFS_MAXPATH];
     sprintf(path, "/title/00010001");
  
@@ -158,13 +157,7 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
 			
-			// Dirty workaround, ISFS_ReadDir does not work properly on nand emu
-			templist = NULL;
-			ret = getdir(path, &templist, &number);	
-			if (templist != NULL)
-			{
-				free(templist);
-			}
+			ret = getdircount(path, &number);
 			
 			if (ret >= 0 && number > 1) // 1 == tmd only
 			{
@@ -215,7 +208,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 		free(buffer);
 		return ret;
 	}
-	for(cnt=0; cnt < num; cnt++)
+	for (cnt=0; cnt < num; cnt++)
     {        
         if ((strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) && (strtol(list[cnt].name, NULL, 16) != bootcontent))
         {			

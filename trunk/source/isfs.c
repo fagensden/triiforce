@@ -22,39 +22,56 @@ s32 __FileCmp(const void *a, const void *b)
 	}
 }
 
+s32 getdircount(char *path, u32 *cnt)
+{
+	if (cnt == NULL) return -2;
+	u32 temp = 0;
+	s32 res = ISFS_ReadDir(path, NULL, &temp);
+	if (res != ISFS_OK)
+	{
+		Print("Error: Could not get dir entry count(ret: %d) for:\n'%s'\n", res, path);
+		return -1;
+	}
+	*cnt = temp;
+	
+	return 1;
+}
 
 s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 {
+	if (ent == NULL) return -2;
+	
 	s32 res;
 	u32 num = 0;
 
 	int i, j, k;
 	
-	res = ISFS_ReadDir(path, NULL, &num);
-	if(res != ISFS_OK)
+	res = getdircount(path, &num);
+	if (res < 0)
 	{
-		Print("Error: could not get dir entry count! (result: %d)\n", res);
+		//Print("Error: could not get dir entry count! (result: %d)\n", res);
 		return -1;
 	}
+	*cnt = num;
+	
+	if (num == 0) return 0;	
 
 	char ebuf[ISFS_MAXPATH + 1];
 
-	char *nbuf = (char *)allocate_memory((ISFS_MAXPATH + 1) * num);
-	if(nbuf == NULL)
+	char *nbuf = (char *)allocate_memory(13 * num);
+	if (nbuf == NULL)
 	{
 		Print("Error: could not allocate buffer for name list!\n");
 		return -2;
 	}
 
 	res = ISFS_ReadDir(path, nbuf, &num);
-	if(res != ISFS_OK)
+	if (res != ISFS_OK)
 	{
 		Print("Error: could not get name list! (result: %d)\n", res);
 		free(nbuf);
 		return -3;
 	}
-	
-	*cnt = num;
 	
 	*ent = malloc(sizeof(dirent_t) * num);
 	if (*ent == NULL)
@@ -64,9 +81,9 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 		return -4;
 	}	
 
-	for(i = 0, k = 0; i < num; i++)
+	for (i = 0, k = 0; i < num; i++)
 	{	    
-		for(j = 0; nbuf[k] != 0; j++, k++)
+		for (j = 0; nbuf[k] != 0; j++, k++)
 			ebuf[j] = nbuf[k];
 		ebuf[j] = 0;
 		k++;

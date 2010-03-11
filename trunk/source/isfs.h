@@ -10,4 +10,5 @@ typedef struct _dirent
 
 
 s32 read_file(char *filepath, u8 **buffer, u32 *filesize);
+s32 getdircount(char *path, u32 *cnt);
 s32 getdir(char *path, dirent_t **ent, u32 *cnt);
