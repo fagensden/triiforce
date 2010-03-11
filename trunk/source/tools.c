@@ -56,7 +56,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r75");
+	Print("TriiForce r78");
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());
@@ -79,7 +79,10 @@ void set_highlight(bool highlight)
 
 void *allocate_memory(u32 size)
 {
-	return memalign(32, (size+31)&(~31) );
+	void *temp;
+	temp = memalign(32, (size+31)&(~31) );
+	memset(temp, 0, (size+31)&(~31) );
+	return temp;
 }
 
 void Verify_Flags()
