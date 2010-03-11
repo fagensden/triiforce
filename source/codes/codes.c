@@ -49,6 +49,8 @@ static const u8 *codelistend = (u8 *) 0x80003000;
 
 void *codelist;
 
+extern const DISC_INTERFACE __io_usbstorage;
+
 DISC_INTERFACE storage;
 
 void storage_shutdown()
