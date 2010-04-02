@@ -166,15 +166,15 @@ void load_handler()
 {
 	if (hooktypeoption != 0x00)
 	{
-		if (debuggeroption == 0x01)
+		if (debuggeroption > 0)
 		{
 			switch(gecko_channel)
 			{
 				case 0: // Slot A
 					memset((void*)0x80001800,0,codehandlerslota_size);
 					memcpy((void*)0x80001800,codehandlerslota,codehandlerslota_size);
-					if (pausedstartoption == 0x01)
-						*(u32*)0x80002798 = 1;
+					//if (debuggeroption == 0x02)
+					//	*(u32*)0x80002798 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
 					memcpy((void*)0x80001F5A, &codelist, 2);
@@ -185,8 +185,8 @@ void load_handler()
 				case 1:	// slot B
 					memset((void*)0x80001800,0,codehandler_size);
 					memcpy((void*)0x80001800,codehandler,codehandler_size);
-					if (pausedstartoption == 0x01)
-						*(u32*)0x80002798 = 1;
+					if (debuggeroption == 0x02)
+						*(u32*)0x80002774 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
 					memcpy((void*)0x80001F5A, &codelist, 2);
@@ -197,8 +197,8 @@ void load_handler()
 				case 2:
 					memset((void*)0x80001800,0,codehandler_size);
 					memcpy((void*)0x80001800,codehandler,codehandler_size);
-					if (pausedstartoption == 0x01)
-						*(u32*)0x80002798 = 1;
+					if (debuggeroption == 0x02)
+						*(u32*)0x80002774 = 1;
 					memcpy((void*)0x80001CDE, &codelist, 2);
 					memcpy((void*)0x80001CE2, ((u8*) &codelist) + 2, 2);
 					memcpy((void*)0x80001F5A, &codelist, 2);

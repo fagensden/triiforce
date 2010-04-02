@@ -798,7 +798,7 @@ void show_menu()
 	int ret;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 2, 2 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 3, 2 };
 
 	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption, bootmethodoption };
 
@@ -808,7 +808,7 @@ void show_menu()
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
 	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
 	char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
-	char *debuggeroptions[2] = { "No debugger", "Debugger enabled" };
+	char *debuggeroptions[3] = { "No debugger", "Debugger enabled", "paused start" };
 	char *bootmethodoptions[2] = { "Normal boot method", "Load apploader" };
 
 	Print("\nLoading...");
