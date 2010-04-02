@@ -56,7 +56,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r79");
+	Print("TriiForce r80");
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());
@@ -110,10 +110,10 @@ void waitforbuttonpress(u32 *out, u32 *outGC)
 		Verify_Flags();
 		
 		WPAD_ScanPads();
-		pressed = WPAD_ButtonsDown(0);
+		pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 
 		PAD_ScanPads();
-		pressedGC = PAD_ButtonsDown(0);
+		pressedGC = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 
 		if(pressed || pressedGC) 
 		{
