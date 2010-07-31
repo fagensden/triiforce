@@ -22,6 +22,7 @@
 #include <wiiuse/wpad.h>
 
 #include "tools.h"
+#include "nand.h"
 
 static bool silent = false;
 
@@ -56,7 +57,20 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r80");
+	Print("TriiForce r81");
+	s32 nand_device = get_nand_device();
+	switch (nand_device)
+	{
+		case 0:
+			Print(" (using real NAND)");
+		break;
+		case 1:
+			Print(" (using SD-NAND)");
+		break;
+		case 2:
+			Print(" (using USB-NAND)");
+		break;
+	}
 	
 	char buf[64];
 	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());

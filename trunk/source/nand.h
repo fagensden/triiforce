@@ -25,5 +25,6 @@ s32 Nand_Enable(nandDevice *);
 s32 Nand_Disable(void);
 s32 Enable_Emu(int selection);
 s32 Disable_Emu();
+s32 get_nand_device();
 
 #endif
