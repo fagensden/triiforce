@@ -64,7 +64,12 @@ static void reset_cb()
 void reboot()
 {
 	Disable_Emu();
-	if (strncmp("STUBHAXX", (char *)0x80001804, 8) == 0) exit(0);
+	if (strncmp("STUBHAXX", (char *)0x80001804, 8) == 0)
+	{
+		Print("Exiting to HBC...\n");
+		exit(0);
+	}
+	Print("Rebooting...\n");
 	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
 }
 
@@ -152,8 +157,11 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 	for (i = 0; i < maxnum; i++)
 	{	
 		// Ignore channels starting with H (Channels) and U (Loadstructor channels)
+		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0 
 		// Also ignore the HBC, title id "JODI"
-		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0 && memcmp(list[i].name, "4a4f4449", 8) != 0 && memcmp(list[i].name, "4A4F4449", 8) != 0)
+		&& memcmp(list[i].name, "4a4f4449", 8) != 0 && memcmp(list[i].name, "4A4F4449", 8) != 0
+		// And ignore everything that's not using characters or numbers(only check 1st char)
+		&& strtol(list[i].name,NULL,16) >= 0x30000000 && strtol(list[i].name,NULL,16) <= 0x7a000000 )
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
 			
@@ -328,7 +336,7 @@ u32 load_dol(u8 *buffer)
 	dolfile = (dolheader *)buffer;
 	
 	Print("Entrypoint: %08x\n", dolfile->entry_point);
-	Print("BSS: %08x, size = %08x(%u)\n", dolfile->bss_start, dolfile->bss_size, dolfile->bss_size);
+	//Print("BSS: %08x, size = %08x(%u)\n", dolfile->bss_start, dolfile->bss_size, dolfile->bss_size);
 
 	memset((void *)dolfile->bss_start, 0, dolfile->bss_size);
 	DCFlushRange((void *)dolfile->bss_start, dolfile->bss_size);
@@ -354,8 +362,8 @@ u32 load_dol(u8 *buffer)
 		memoffset = dolfile->text_start[i];
 		restsize = dolfile->text_size[i];
 
-		Print("Moving text section %u from %08x to %08x-%08x...", i, dolfile->text_pos[i], dolfile->text_start[i], dolfile->text_start[i]+dolfile->text_size[i]);
-		fflush(stdout);
+		//Print("Moving text section %u from %08x to %08x-%08x...", i, dolfile->text_pos[i], dolfile->text_start[i], dolfile->text_start[i]+dolfile->text_size[i]);
+		//fflush(stdout);
 			
 		while (restsize > 0)
 		{
@@ -375,8 +383,8 @@ u32 load_dol(u8 *buffer)
 			memoffset += size;
 		}
 
-		Print("done\n");
-		fflush(stdout);			
+		//Print("done\n");
+		//fflush(stdout);			
 	}
 
 	for(i = 0; i < 11; i++)
@@ -392,8 +400,8 @@ u32 load_dol(u8 *buffer)
 		memoffset = dolfile->data_start[i];
 		restsize = dolfile->data_size[i];
 
-		Print("Moving data section %u from %08x to %08x-%08x...", i, dolfile->data_pos[i], dolfile->data_start[i], dolfile->data_start[i]+dolfile->data_size[i]);
-		fflush(stdout);
+		//Print("Moving data section %u from %08x to %08x-%08x...", i, dolfile->data_pos[i], dolfile->data_start[i], dolfile->data_start[i]+dolfile->data_size[i]);
+		//fflush(stdout);
 			
 		while (restsize > 0)
 		{
@@ -413,9 +421,11 @@ u32 load_dol(u8 *buffer)
 			memoffset += size;
 		}
 
-		Print("done\n");
-		fflush(stdout);			
+		//Print("done\n");
+		//fflush(stdout);			
 	} 
+	Print("All .dol sections moved\n");
+	fflush(stdout);			
 	return dolfile->entry_point;
 }
 
@@ -642,6 +652,7 @@ void setVideoMode()
 	
 	if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 }
+
 void green_fix() //GREENSCREEN FIX
 {     
     VIDEO_Configure(rmode);
@@ -650,6 +661,7 @@ void green_fix() //GREENSCREEN FIX
     VIDEO_Flush();
     VIDEO_WaitVSync();
 }
+
 void bootTitle(u64 titleid)
 {
 	entrypoint appJump;
@@ -689,16 +701,16 @@ void bootTitle(u64 titleid)
 
 	if (entryPoint != 0x3400)
 	{
-		Print("Setting bus speed\n");
+		//Print("Setting bus speed\n");
 		*(u32*)0x800000F8 = 0x0E7BE2C0;
-		Print("Setting cpu speed\n");
+		//Print("Setting cpu speed\n");
 		*(u32*)0x800000FC = 0x2B73A840;
 
 		DCFlushRange((void*)0x800000F8, 0xFF);
 	}
 	
 	// Remove 002 error
-	Print("Fake IOS Version(%u)\n", requested_ios);
+	//Print("Fake IOS Version(%u)\n", requested_ios);
 	*(u16 *)0x80003140 = requested_ios;
 	*(u16 *)0x80003142 = 0xffff;
 	*(u16 *)0x80003188 = requested_ios;
@@ -713,7 +725,7 @@ void bootTitle(u64 titleid)
 		Print("ES_SetUID failed %d", ret);
 		return;
 	}	
-	Print("ES_SetUID successful\n");
+	//Print("ES_SetUID successful\n");
 	
 	if (hooktypeoption != 0)
 	{
@@ -728,7 +740,7 @@ void bootTitle(u64 titleid)
 
 	if (!get_silent())
 	{
-		sleep(3);
+		sleep(5);
 	}
 
 	setVideoMode();
@@ -939,11 +951,11 @@ void show_menu()
 			}
 		}
 		
-		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		if (pressed == WPAD_BUTTON_HOME || pressed == WPAD_CLASSIC_BUTTON_HOME || pressedGC == PAD_BUTTON_START)
 		{
 			free(TitleIds);
 			free(TitleNames);
-			Print("Exiting...\n");
+			ISFS_Deinitialize();
 			return;
 		}	
 	}	
@@ -1055,9 +1067,8 @@ void show_nand_menu()
 			}
 		}
 		
-		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		if (pressed == WPAD_BUTTON_HOME || pressed == WPAD_CLASSIC_BUTTON_HOME || pressedGC == PAD_BUTTON_START)
 		{
-			Print("Exiting...\n");
 			return;
 		}	
 	}	

@@ -60,7 +60,15 @@ s32 Nand_Enable(nandDevice *dev)
 		return fd;
 
 	/* Set input buffer */
-	inbuf[0] = dev->mode;
+	if (IOS_GetRevision() >= 20)
+	{
+		// New method, fully enable full emulation
+		inbuf[0] = dev->mode | 0x100;
+	} else
+	{
+		// Old method
+		inbuf[0] = dev->mode;
+	}
 
 	/* Enable NAND emulator */
 	ret = IOS_Ioctl(fd, 100, inbuf, sizeof(inbuf), NULL, 0);
@@ -93,6 +101,11 @@ s32 Nand_Disable(void)
 } 
 
 static int mounted = 0;
+
+s32 get_nand_device()
+{
+	return mounted;
+}
 
 s32 Enable_Emu(int selection)
 {
@@ -130,6 +143,5 @@ s32 Disable_Emu()
 	
 	mounted = 0;
 	
-	return 0;
-	
+	return 0;	
 }	
