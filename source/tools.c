@@ -23,6 +23,7 @@
 
 #include "tools.h"
 #include "nand.h"
+#include "sha1.h"
 
 static bool silent = false;
 
@@ -52,12 +53,128 @@ void Print(const char *text, ...)
 	}
 }
 
+#define info_number 23
+
+static u32 hashes[info_number][5] = {
+{0x20e60607, 0x4e02c484, 0x2bbc5758, 0xee2b40fc, 0x35a68b0a},		// cIOSrev13a
+{0x620c57c7, 0xd155b67f, 0xa451e2ba, 0xfb5534d7, 0xaa457878}, 		// cIOSrev13b
+{0x3c968e54, 0x9e915458, 0x9ecc3bda, 0x16d0a0d4, 0x8cac7917},		// cIOS37 rev18
+{0xe811bca8, 0xe1df1e93, 0x779c40e6, 0x2006e807, 0xd4403b97},		// cIOS38 rev18
+{0x697676f0, 0x7a133b19, 0x881f512f, 0x2017b349, 0x6243c037},		// cIOS57 rev18
+{0x34ec540b, 0xd1fb5a5e, 0x4ae7f069, 0xd0a39b9a, 0xb1a1445f},		// cIOS60 rev18
+{0xd98a4dd9, 0xff426ddb, 0x1afebc55, 0x30f75489, 0x40b27ade},		// cIOS70 rev18
+{0x0a49cd80, 0x6f8f87ff, 0xac9a10aa, 0xefec9c1d, 0x676965b9},		// cIOS37 rev19
+{0x09179764, 0xeecf7f2e, 0x7631e504, 0x13b4b7aa, 0xca5fc1ab},		// cIOS38 rev19
+{0x6010d5cf, 0x396415b7, 0x3c3915e9, 0x83ded6e3, 0x8f418d54},		// cIOS57 rev19
+{0x589d6c4f, 0x6bcbd80a, 0xe768f258, 0xc53a322c, 0xd143f8cd},		// cIOS60 rev19
+{0x8969e0bf, 0x7f9b2391, 0x31ecfd88, 0x1c6f76eb, 0xf9418fe6},		// cIOS70 rev19
+{0x30aeadfe, 0x8b6ea668, 0x446578c7, 0x91f0832e, 0xb33c08ac},		// cIOS36 rev20
+{0xba0461a2, 0xaa26eed0, 0x482c1a7a, 0x59a97d94, 0xa607773e},		// cIOS37 rev20
+{0xb694a33e, 0xf5040583, 0x0d540460, 0x2a450f3c, 0x69a68148},		// cIOS38 rev20
+{0xf6058710, 0xfe78a2d8, 0x44e6397f, 0x14a61501, 0x66c352cf},		// cIOS53 rev20
+{0xfa07fb10, 0x52ffb607, 0xcf1fc572, 0xf94ce42e, 0xa2f5b523},		// cIOS55 rev20
+{0xe30acf09, 0xbcc32544, 0x490aec18, 0xc276cee6, 0x5e5f6bab},		// cIOS56 rev20
+{0x595ef1a3, 0x57d0cd99, 0x21b6bf6b, 0x432f6342, 0x605ae60d},		// cIOS57 rev20
+{0x687a2698, 0x3efe5a08, 0xc01f6ae3, 0x3d8a1637, 0xadab6d48},		// cIOS60 rev20
+{0xea6610e4, 0xa6beae66, 0x887be72d, 0x5da3415b, 0xa470523c},		// cIOS61 rev20
+{0x64e1af0e, 0xf7167fd7, 0x0c696306, 0xa2035b2d, 0x6047c736},		// cIOS70 rev20
+{0x0df93ca9, 0x833cf61f, 0xb3b79277, 0xf4c93cd2, 0xcd8eae17}		// cIOS80 rev20
+};
+
+static char infos[info_number][24] = {
+{"cIOS rev13a slot 249"},
+{"cIOS rev13b slot 249"},
+{"cIOS37rev18 slot 249"},
+{"cIOS38rev18 slot 249"},
+{"cIOS57rev18 slot 249"},
+{"cIOS60rev18 slot 249"},
+{"cIOS70rev18 slot 249"},
+{"cIOS37rev19 slot 249"},
+{"cIOS38rev19 slot 249"},
+{"cIOS57rev19 slot 249"},
+{"cIOS60rev19 slot 249"},
+{"cIOS70rev19 slot 249"},
+{"cIOS36rev20 slot 249"},
+{"cIOS37rev20 slot 249"},
+{"cIOS38rev20 slot 249"},
+{"cIOS53rev20 slot 249"},
+{"cIOS55rev20 slot 249"},
+{"cIOS56rev20 slot 249"},
+{"cIOS57rev20 slot 249"},
+{"cIOS60rev20 slot 249"},
+{"cIOS61rev20 slot 249"},
+{"cIOS70rev20 slot 249"},
+{"cIOS80rev20 slot 249"}
+};	
+
+s32 GetTMD(u64 TicketID, signed_blob **Output, u32 *Length)
+{
+	signed_blob* TMD = NULL;
+
+	u32 TMD_Length;
+	s32 ret;
+
+	/* Retrieve TMD length */
+	ret = ES_GetStoredTMDSize(TicketID, &TMD_Length);
+	if (ret < 0)
+		return ret;
+
+	/* Allocate memory */
+	TMD = (signed_blob*)memalign(32, (TMD_Length+31)&(~31));
+	if (!TMD)
+		return IPC_ENOMEM;
+
+	/* Retrieve TMD */
+	ret = ES_GetStoredTMD(TicketID, TMD, TMD_Length);
+	if (ret < 0)
+	{
+		free(TMD);
+		return ret;
+	}
+
+	/* Set values */
+	*Output = TMD;
+	*Length = TMD_Length;
+
+	return 0;
+}
+
 void printheadline()
 {
+	signed_blob *TMD = NULL;
+	tmd *t = NULL;
+	u32 TMD_size = 0;
+	u32 i;
+
+	int ret = GetTMD((((u64)(1) << 32) | (IOS_GetVersion())), &TMD, &TMD_size);
+	
+	char *info;
+	char default_info[32];
+	sprintf(default_info, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
+	info = (char *)default_info;
+
+	if (ret == 0)
+	{
+		t = (tmd*)SIGNATURE_PAYLOAD(TMD);
+
+		sha1 hash;
+		SHA1((u8 *)TMD, TMD_size, hash);
+
+		free(TMD);
+
+		for (i = 0;i < info_number;i++)
+		{
+			if (memcmp((void *)hash, (u32 *)&hashes[i], sizeof(sha1)) == 0)
+			{
+				info = (char *)&infos[i];
+			}
+		}
+	}
+	
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r81");
+	Print("TriiForce r82");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -72,10 +189,8 @@ void printheadline()
 		break;
 	}
 	
-	char buf[64];
-	sprintf(buf, "IOS%u (Rev %u)\n", IOS_GetVersion(), IOS_GetRevision());
-	Print("\x1B[%d;%dH", 0, cols-strlen(buf)-1);	
-	Print(buf);
+	Print("\x1B[%d;%dH", 0, cols-strlen(info)-1);	
+	Print("%s\n", info);
 }
 
 void set_highlight(bool highlight)
