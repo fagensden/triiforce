@@ -518,6 +518,8 @@ bool dochannelhooks(void *addr, u32 len, bool bootcontentloaded)
 			{
 				*(((u32*)addr_start)+1) = 0x7FE802A6;
 				DCFlushRange(((u32*)addr_start)+1, 4);
+				ICInvalidateRange(((u32*)addr_start)+1, 4);
+
 				multidolhook((u32)addr_start+sizeof(multidolchanhooks)-4);
 				multidolpatched = true;
 			}

@@ -115,7 +115,7 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 		return Fd;
 	}
 
-	fstats *status;
+	fstats *status = NULL;
 	status = allocate_memory(sizeof(fstats));
 	if (status == NULL)
 	{

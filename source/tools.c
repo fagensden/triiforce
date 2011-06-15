@@ -174,7 +174,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r82");
+	Print("TriiForce r84");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -298,7 +298,7 @@ s32 Identify_GenerateTik(signed_blob **outbuf, u32 *outlen)
 
 s32 identify(u64 titleid, u32 *ios)
 {
-	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	u8 *tmdBuffer = NULL;
 	u32 tmdSize;
 	signed_blob *tikBuffer = NULL;
