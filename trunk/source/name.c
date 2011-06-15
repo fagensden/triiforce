@@ -54,9 +54,8 @@ char *read_name_from_banner_app(u64 titleid)
 	s32 cfd;
     s32 ret;
 	u32 num;
-	dirent_t *list;
-    char contentpath[ISFS_MAXPATH];
-    char path[ISFS_MAXPATH];
+	dirent_t *list = NULL;
+    char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
     u32 cnt = 0;
 	u8 *buffer = allocate_memory(368);
 	if (buffer == NULL)
@@ -65,9 +64,9 @@ char *read_name_from_banner_app(u64 titleid)
 		return NULL;
 	}
    
-	sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+	sprintf(path, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	
-    ret = getdir(contentpath, &list, &num);
+    ret = getdir(path, &list, &num);
     if (ret < 0)
 	{
 		Print("Reading folder of the title failed\n");
@@ -128,7 +127,7 @@ char *read_name_from_banner_bin(u64 titleid)
 {
 	s32 cfd;
     s32 ret;
-    char path[ISFS_MAXPATH];
+    char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	u8 *buffer = allocate_memory(160);
 	if (buffer == NULL)
 	{

@@ -302,5 +302,6 @@ void do_codes(u64 titleid)
 	}
 
 	DCFlushRange((void*)0x80000000, 0x3f00);
+	ICInvalidateRange((void*)0x80000000, 0x3f00);
 }
 

@@ -35,6 +35,9 @@
 #include "nand.h"
 #include "background.h"
 
+extern s32 __IOS_ShutdownSubsystems();
+extern void __exception_closeall();
+
 u32 *xfb = NULL;
 GXRModeObj *rmode = NULL;
 u8 Video_Mode;
@@ -135,7 +138,7 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 	u32 tempnum = 0;
 	u32 number;
 	dirent_t *list = NULL;
-    char path[ISFS_MAXPATH];
+    char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
     sprintf(path, "/title/00010001");
  
 	ret = getdir(path, &list, &maxnum);
@@ -158,9 +161,10 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 	{	
 		// Ignore channels starting with H (Channels) and U (Loadstructor channels)
 		if (memcmp(list[i].name, "48", 2) != 0 && memcmp(list[i].name, "55", 2) != 0 
-		// Also ignore the HBC, title id "JODI"
-		&& memcmp(list[i].name, "4a4f4449", 8) != 0 && memcmp(list[i].name, "4A4F4449", 8) != 0
-		// And ignore everything that's not using characters or numbers(only check 1st char)
+		// Also ignore the HBC, "JODI" and 0xaf1bf516 
+		&& memcmp(list[i].name, "4a4f4449", 8) != 0 && memcmp(list[i].name, "4A4F4449", 8) != 0 
+		&& memcmp(list[i].name, "af1bf516", 8) != 0 && memcmp(list[i].name, "AF1BF516", 8) != 0
+ 		// And ignore everything that's not using characters or numbers(only check 1st char)
 		&& strtol(list[i].name,NULL,16) >= 0x30000000 && strtol(list[i].name,NULL,16) <= 0x7a000000 )
 		{
 			sprintf(path, "/title/00010001/%s/content", list[i].name);
@@ -188,39 +192,29 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
     s32 ret;
 	u32 num;
 	dirent_t *list;
-    char contentpath[ISFS_MAXPATH];
-    char path[ISFS_MAXPATH];
+    char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
     int cnt = 0;
 	
-	u8 LZ77_0x10 = 0x10;
-    u8 LZ77_0x11 = 0x11;
-	u8 *decompressed;
-	u8 *compressed;
-	u32 size_out = 0;
+	u8 *decompressed = NULL;
 	u32 decomp_size = 0;
 	
-    u8 *buffer = memalign(32, 32);
-	if (buffer == NULL)
-	{
-		Print("Out of memory\n");
-		return -1;
-	}
-	
+	u8 buffer[32] ATTRIBUTE_ALIGN(32);	// Needs to be aligned because it's used for nand access
+ 
     u8 check[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
  
-    sprintf(contentpath, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-    ret = getdir(contentpath, &list, &num);
+    sprintf(path, "/title/%08x/%08x/content", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+    ret = getdir(path, &list, &num);
     if (ret < 0)
 	{
 		Print("Reading folder of the title failed\n");
-		free(buffer);
 		return ret;
 	}
+	
 	for (cnt=0; cnt < num; cnt++)
     {        
         if ((strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) && (strtol(list[cnt].name, NULL, 16) != bootcontent))
         {			
-			memset(buffer, 0x00, 32);
+			memset(buffer, 0, 32);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
             cfd = ISFS_Open(path, ISFS_OPEN_READ);
@@ -240,34 +234,23 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 
             ISFS_Close(cfd);	
 
-			if (buffer[0] == LZ77_0x10 || buffer[0] == LZ77_0x11)
+			if (isLZ77compressed(buffer))
 			{
-                if (buffer[0] == LZ77_0x10)
-				{
-					Print("Found LZ77 0x10 compressed content --> %s\n", list[cnt].name);
-				} else
-				{
-					Print("Found LZ77 0x11 compressed content --> %s\n", list[cnt].name);
-				}
+				Print("Found LZ77 compressed content --> %s\n", list[cnt].name);
 				Print("This is most likely the main DOL, decompressing for checking\n");
-				ret = read_file(path, &compressed, &size_out);
-				if (ret < 0)
-				{
-					Print("Reading file failed\n");
-					free(list);
-					free(buffer);
-					return ret;
-				}
-				Print("read file\n");
-				ret = decompressLZ77content(compressed, 32, &decompressed, &decomp_size);
+
+				// TODO still needs some optimisation, still allocating much too much memory
+				
+				ret = decompressLZ77content(buffer, 32, &decompressed, &decomp_size);
 				if (ret < 0)
 				{
 					Print("Decompressing failed\n");
 					free(list);
-					free(buffer);
 					return ret;
 				}				
 				memcpy(buffer, decompressed, 8);
+
+				free(decompressed);
  			}
 			
 	        ret = memcmp(buffer, check, 6);
@@ -275,14 +258,12 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
             {
 				Print("Found DOL --> %s\n", list[cnt].name);
 				sprintf(out, "%s", path);
-				free(buffer);
 				free(list);
 				return 0;
             } 
         }
     }
 	
-	free(buffer);
 	free(list);
 	
 	Print("No .dol found\n");
@@ -340,6 +321,7 @@ u32 load_dol(u8 *buffer)
 
 	memset((void *)dolfile->bss_start, 0, dolfile->bss_size);
 	DCFlushRange((void *)dolfile->bss_start, dolfile->bss_size);
+	ICInvalidateRange((void *)dolfile->bss_start, dolfile->bss_size);
 	
     Print("BSS cleared\n");
 	
@@ -375,9 +357,11 @@ u32 load_dol(u8 *buffer)
 				size = restsize;
 			}
 			restsize -= size;
-			ICInvalidateRange ((void *)memoffset, size);
+			
 			memcpy((void *)memoffset, (void *)doloffset, size);
+			
 			DCFlushRange((void *)memoffset, size);
+			ICInvalidateRange ((void *)memoffset, size);
 			
 			doloffset += size;
 			memoffset += size;
@@ -413,9 +397,10 @@ u32 load_dol(u8 *buffer)
 				size = restsize;
 			}
 			restsize -= size;
-			ICInvalidateRange ((void *)memoffset, size);
 			memcpy((void *)memoffset, (void *)doloffset, size);
+
 			DCFlushRange((void *)memoffset, size);
+			ICInvalidateRange ((void *)memoffset, size);
 			
 			doloffset += size;
 			memoffset += size;
@@ -432,7 +417,7 @@ u32 load_dol(u8 *buffer)
 
 s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool skip_bootcontent)
 {
-	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	int ret;
 	u16 bootindex;
 	u16 bootcontent;
@@ -440,11 +425,12 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	
 	u8 *tmdBuffer = NULL;
 	u32 tmdSize;
-	tmd_content *p_cr;
+	tmd_content *p_cr = NULL;
 
 	u32 pressed;
 	u32 pressedGC;
 
+	// Opening the tmd only to get to know which content is the apploader
 	Print("Reading TMD...");
 
 	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
@@ -470,6 +456,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 		bootcontent_loaded = false;
 		Print("Searching for main DOL...\n");
 			
+		// Search the folder for .dols and ignore the apploader
 		ret = check_dol(titleid, filepath, bootcontent);
 		if (ret < 0)
 		{
@@ -694,7 +681,8 @@ void bootTitle(u64 titleid)
 		return;
 	}
 	
-	ISFS_Deinitialize();
+	// Might cause trouble?
+	//ISFS_Deinitialize();
 	
 	// Set the clock
 	settime(secs_to_ticks(time(NULL) - 946684800));
@@ -710,7 +698,6 @@ void bootTitle(u64 titleid)
 	}
 	
 	// Remove 002 error
-	//Print("Fake IOS Version(%u)\n", requested_ios);
 	*(u16 *)0x80003140 = requested_ios;
 	*(u16 *)0x80003142 = 0xffff;
 	*(u16 *)0x80003188 = requested_ios;
@@ -719,6 +706,7 @@ void bootTitle(u64 titleid)
 	DCFlushRange((void*)0x80003140, 4);
 	DCFlushRange((void*)0x80003188, 4);
 	
+	// Maybe not required at all?	
 	ret = ES_SetUID(titleid);
 	if (ret < 0)
 	{
@@ -747,7 +735,12 @@ void bootTitle(u64 titleid)
 	green_fix();
 	
 	WPAD_Shutdown();
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+
+	IRQ_Disable();
+	__IOS_ShutdownSubsystems();
+	__exception_closeall();
+
+	//SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
 
 	if (entryPoint != 0x3400)
 	{
