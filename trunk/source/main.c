@@ -198,7 +198,14 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	u8 *decompressed = NULL;
 	u32 decomp_size = 0;
 	
-	u8 buffer[32] ATTRIBUTE_ALIGN(32);	// Needs to be aligned because it's used for nand access
+	u8 *buffer = allocate_memory(32);	// Needs to be aligned because it's used for nand access
+	//u8 buffer[32] ATTRIBUTE_ALIGN(32);	Doesn't work!!!	
+	
+	if (buffer == NULL)
+	{
+		Print("Out of memory\n");
+		return -1;
+	}
  
     u8 check[6] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
  
@@ -207,6 +214,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
     if (ret < 0)
 	{
 		Print("Reading folder of the title failed\n");
+		free(buffer);
 		return ret;
 	}
 	
@@ -246,6 +254,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 				{
 					Print("Decompressing failed\n");
 					free(list);
+					free(buffer);
 					return ret;
 				}				
 				memcpy(buffer, decompressed, 8);
@@ -259,12 +268,14 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 				Print("Found DOL --> %s\n", list[cnt].name);
 				sprintf(out, "%s", path);
 				free(list);
+				free(buffer);
 				return 0;
             } 
         }
     }
 	
 	free(list);
+	free(buffer);
 	
 	Print("No .dol found\n");
 	return -1;
@@ -705,6 +716,14 @@ void bootTitle(u64 titleid)
 	
 	DCFlushRange((void*)0x80003140, 4);
 	DCFlushRange((void*)0x80003188, 4);
+	
+	if (hooktypeoption == 0)
+	{
+		*(u32 *)0x80003180 = TITLE_LOWER(titleid);
+	} else
+	{
+		*(u32 *)0x80003180 = 0;		// No comment required here
+	}
 	
 	// Maybe not required at all?	
 	ret = ES_SetUID(titleid);
