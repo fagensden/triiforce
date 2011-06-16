@@ -174,7 +174,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r84");
+	Print("TriiForce r85");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
