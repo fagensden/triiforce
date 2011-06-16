@@ -698,14 +698,30 @@ void bootTitle(u64 titleid)
 	// Set the clock
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
+	// Memory setup when booting the main.dol
 	if (entryPoint != 0x3400)
 	{
-		//Print("Setting bus speed\n");
-		*(u32*)0x800000F8 = 0x0E7BE2C0;
-		//Print("Setting cpu speed\n");
-		*(u32*)0x800000FC = 0x2B73A840;
+		*(u32 *)0x80000034 = 0;			// Arena High, the apploader does this too
+		*(u32 *)0x800000F4 = 0x817FE000;	// BI2, the apploader does this too
+		*(u32 *)0x800000F8 = 0x0E7BE2C0;	// bus speed
+		*(u32 *)0x800000FC = 0x2B73A840;	// cpu speed
 
-		DCFlushRange((void*)0x800000F8, 0xFF);
+		DCFlushRange((void*)0x80000000, 0x100);
+		
+		memset((void *)0x817FE000, 0, 0x2000); // Clearing BI2, or should this be read from somewhere?
+		DCFlushRange((void*)0x817FE000, 0x2000);		
+
+		if (hooktypeoption == 0)
+		{
+			*(u32 *)0x80003180 = TITLE_LOWER(titleid);
+		} else
+		{
+			*(u32 *)0x80003180 = 0;		// No comment required here
+		}
+		
+		*(u32 *)0x80003184 = 0x81000000;	// Game id address, while there's all 0s at 0x81000000 when using the apploader...
+
+		DCFlushRange((void*)0x80003180, 32);
 	}
 	
 	// Remove 002 error
@@ -714,16 +730,8 @@ void bootTitle(u64 titleid)
 	*(u16 *)0x80003188 = requested_ios;
 	*(u16 *)0x8000318A = 0xffff;
 	
-	DCFlushRange((void*)0x80003140, 4);
-	DCFlushRange((void*)0x80003188, 4);
-	
-	if (hooktypeoption == 0)
-	{
-		*(u32 *)0x80003180 = TITLE_LOWER(titleid);
-	} else
-	{
-		*(u32 *)0x80003180 = 0;		// No comment required here
-	}
+	DCFlushRange((void*)0x80003140, 32);
+	DCFlushRange((void*)0x80003180, 32);
 	
 	// Maybe not required at all?	
 	ret = ES_SetUID(titleid);
