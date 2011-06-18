@@ -51,7 +51,6 @@ char *get_name_from_banner_buffer(u8 *buffer)
 
 char *read_name_from_banner_app(u64 titleid)
 {
-	s32 cfd;
     s32 ret;
 	u32 num;
 	dirent_t *list = NULL;
@@ -79,25 +78,14 @@ char *read_name_from_banner_app(u64 titleid)
     {        
         if (strstr(list[cnt].name, ".app") != NULL || strstr(list[cnt].name, ".APP") != NULL) 
         {
-			memset(buffer, 0x00, 368);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
-            cfd = ISFS_Open(path, ISFS_OPEN_READ);
-            if (cfd < 0)
-			{
-	    	    Print("ISFS_OPEN for %s failed %d\n", path, cfd);
-				continue;
-			}
-			
-            ret = ISFS_Read(cfd, buffer, 368);
+            ret = read_file_from_nand(path, buffer, 368);
 	        if (ret < 0)
 	        {
-	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
-		        ISFS_Close(cfd);
+		        // Error is printed in read_file_from_nand already
 				continue;
 	        }
-
-            ISFS_Close(cfd);	
 
 			if (memcmp((buffer+0x80), imet, 4) == 0)
 			{
@@ -125,7 +113,6 @@ char *read_name_from_banner_app(u64 titleid)
 
 char *read_name_from_banner_bin(u64 titleid)
 {
-	s32 cfd;
     s32 ret;
     char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	u8 *buffer = allocate_memory(160);
@@ -137,24 +124,13 @@ char *read_name_from_banner_bin(u64 titleid)
    
 	sprintf(path, "/title/%08x/%08x/data/banner.bin", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
   
-	cfd = ISFS_Open(path, ISFS_OPEN_READ);
-	if (cfd < 0)
-	{
-		//Print("ISFS_OPEN for %s failed %d\n", path, cfd);
-		free(buffer);
-		return NULL;
-	}
-
-    ret = ISFS_Read(cfd, buffer, 160);
+	ret = read_file_from_nand(path, buffer, 160);
     if (ret < 0)
     {
-		Print("ISFS_Read for %s failed %d\n", path, ret);
-	    ISFS_Close(cfd);
+        // Error is printed in read_file_from_nand already
 		free(buffer);
 		return NULL;
 	}
-
-	ISFS_Close(cfd);	
 
 	char *out = get_name_from_banner_buffer(buffer);
 	if (out == NULL)

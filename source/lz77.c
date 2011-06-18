@@ -30,7 +30,7 @@ u32 packBytes(int a, int b, int c, int d)
     return (d << 24) | (c << 16) | (b << 8) | (a);
 }
  
-s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
+s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen, u32 max_size)
 {
     int x, y;
  
@@ -48,16 +48,27 @@ s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
         compressedPos += 0x4;
     }
  
-    Print("Decompressed size : %i\n", decompressedSize);
+    //Print("Decompressed size : %i\n", decompressedSize);
+
+	if (max_size == 0)
+	{
+		max_size = decompressedSize;
+	} else
+	{
+		if (max_size > decompressedSize)
+		{
+			return -1;
+		}	
+	}
  
-    out = malloc(decompressedSize);
+    out = malloc(max_size);
 	if (out == NULL)
 	{
 		Print("Out of memory\n");
 		return -1;
 	}
  
-    while (compressedPos < inputLen && decompressedPos < decompressedSize)
+    while (compressedPos < inputLen && decompressedPos < max_size)
     {
         u8 byteFlag = in[compressedPos];
         compressedPos++;
@@ -100,13 +111,19 @@ s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	 
 				for (y = 0; y < copyLen; y++)
 				{
-					out[decompressedPos + y] = out[decompressedPos - pos + y];
+					if (decompressedPos + y < max_size)
+					{
+						out[decompressedPos + y] = out[decompressedPos - pos + y];
+					}
 				}
 				 
 				decompressedPos += copyLen;
 			} else 
 			{
-				out[decompressedPos] = in[compressedPos];
+				if (decompressedPos < max_size)
+				{
+					out[decompressedPos] = in[compressedPos];
+				}
 				 
 				decompressedPos++;
 				compressedPos++;
@@ -115,13 +132,19 @@ s32 __decompressLZ77_11(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 			if (compressedPos >= inputLen || decompressedPos >= decompressedSize)
 				break;			 
 		}
-	}	 
+	}
+
+	if (compressedPos > inputLen || decompressedPos > decompressedSize)
+	{
+		return -1;
+	}
+	 
 	*output = out;
 	*outputLen = decompressedSize;
 	return 0;
 }
  
-s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
+s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen, u32 max_size)
 {
 	int x, y;
 	 
@@ -135,9 +158,20 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	 
 	//int compressionType = (packBytes(in[0], in[1], in[2], in[3]) >> 4) & 0xF;
 	 
-	Print("Decompressed size : %i\n", decompressedSize);
-	 
-	out = malloc(decompressedSize);
+	//Print("Decompressed size : %i\n", decompressedSize);
+
+	if (max_size == 0)
+	{
+		max_size = decompressedSize;
+	} else
+	{
+		if (max_size > decompressedSize)
+		{
+			return -1;
+		}	
+	}
+ 
+	out = malloc(max_size);
 	if (out == NULL)
 	{
 		Print("Out of memory\n");
@@ -146,7 +180,7 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 	 
 	compressedPos += 0x4;
 	 
-	while (decompressedPos < decompressedSize)
+	while (compressedPos < inputLen && decompressedPos < max_size)
 	{
 		u8 flag = *(u8*)(in + compressedPos);
 		compressedPos += 1;
@@ -163,25 +197,36 @@ s32 __decompressLZ77_10(u8 *in, u32 inputLen, u8 **output, u32 *outputLen)
 				 
 				for (y = 0; y < copyLen; y++)
 				{
-					out[decompressedPos + y] = out[decompressedPos - pos + (y % pos)];
+					if (decompressedPos + y < max_size)
+					{
+						out[decompressedPos + y] = out[decompressedPos - pos + (y % pos)];
+					}
 				}
 				 
 				compressedPos += 2;
 				decompressedPos += copyLen;
 			} else
 			{
-				out[decompressedPos] = in[compressedPos];
+				if (decompressedPos < max_size)
+				{
+					out[decompressedPos] = in[compressedPos];
+				}
 				compressedPos += 1;
 				decompressedPos += 1;
 			}
 		 
 			flag <<= 1;
 			 
-			if (decompressedPos >= decompressedSize)
+			if (compressedPos >= inputLen || decompressedPos >= decompressedSize)
 				break;
 		}
 	}
-	 
+
+	if (compressedPos > inputLen || decompressedPos > decompressedSize)
+	{
+		return -1;
+	}
+ 
 	*output = out;
 	*outputLen = decompressedSize;
 	return 0;
@@ -197,18 +242,18 @@ int isLZ77compressed(u8 *buffer)
 	return 0;
 }
  
-int decompressLZ77content(u8 *buffer, u32 length, u8 **output, u32 *outputLen)
+int decompressLZ77content(u8 *buffer, u32 length, u8 **output, u32 *outputLen, u32 max_size)
 {
     int ret;
 	switch (buffer[0])
     {
         case LZ77_0x10_FLAG:
-            Print("LZ77 variant 0x10 compressed content...unpacking may take a while...\n");
-            ret = __decompressLZ77_10(buffer, length, output, outputLen);
+            //Print("LZ77 variant 0x10 compressed content...unpacking may take a while...\n");
+            ret = __decompressLZ77_10(buffer, length, output, outputLen, max_size);
 			break;
         case LZ77_0x11_FLAG:
-            Print("LZ77 variant 0x11 compressed content...unpacking may take a while...\n");
-            ret = __decompressLZ77_11(buffer, length, output, outputLen);
+            //Print("LZ77 variant 0x11 compressed content...unpacking may take a while...\n");
+            ret = __decompressLZ77_11(buffer, length, output, outputLen, max_size);
 			break;
         default:
             Print("Not compressed ...\n");

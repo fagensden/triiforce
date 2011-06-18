@@ -24,6 +24,7 @@
 #include "tools.h"
 #include "nand.h"
 #include "sha1.h"
+#include "isfs.h"
 
 static bool silent = false;
 
@@ -174,7 +175,7 @@ void printheadline()
 	int rows, cols;
 	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r86");
+	Print("TriiForce r87");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -312,7 +313,7 @@ s32 identify(u64 titleid, u32 *ios)
 	fflush(stdout);
 	
 	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	ret = read_file(filepath, &tmdBuffer, &tmdSize);
+	ret = read_full_file_from_nand(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
 		Print("Reading TMD failed\n");
@@ -340,7 +341,7 @@ s32 identify(u64 titleid, u32 *ios)
 	fflush(stdout);
 
 	sprintf(filepath, "/sys/cert.sys");
-	ret = read_file(filepath, &certBuffer, &certSize);
+	ret = read_full_file_from_nand(filepath, &certBuffer, &certSize);
 	if (ret < 0)
 	{
 		Print("Reading certs failed\n");
