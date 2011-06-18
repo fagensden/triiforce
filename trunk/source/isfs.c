@@ -97,7 +97,7 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 	return 0;
 }
 
-s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
+s32 read_full_file_from_nand(char *filepath, u8 **buffer, u32 *filesize)
 {
 	s32 Fd;
 	int ret;
@@ -153,6 +153,64 @@ s32 read_file(char *filepath, u8 **buffer, u32 *filesize)
 	ISFS_Close(Fd);
 
 	*filesize = status->file_length;
+	free(status);
+
+	return 0;
+}
+
+s32 read_file_from_nand(char *filepath, u8 *buffer, u32 filesize)
+{
+	s32 Fd;
+	int ret;
+
+	if (buffer == NULL)
+	{
+		Print("NULL Pointer\n");
+		return -1;
+	}
+
+	Fd = ISFS_Open(filepath, ISFS_OPEN_READ);
+	if (Fd < 0)
+	{
+		Print("ISFS_Open %s failed %d\n", filepath, Fd);
+		return Fd;
+	}
+
+	fstats *status = NULL;
+	status = allocate_memory(sizeof(fstats));
+	if (status == NULL)
+	{
+		Print("Out of memory for status\n");
+		return -1;
+	}
+	
+	ret = ISFS_GetFileStats(Fd, status);
+	if (ret < 0)
+	{
+		Print("ISFS_GetFileStats failed %d\n", ret);
+		ISFS_Close(Fd);
+		free(status);
+		return -1;
+	}
+	
+	if (filesize > status->file_length)
+	{
+		Print("Reading %u bytes failed, filesize: %u\n", filesize, status->file_length);
+		ISFS_Close(Fd);
+		free(status);
+		return -1;
+	}
+	
+	ret = ISFS_Read(Fd, buffer, filesize);
+	if (ret < 0)
+	{
+		Print("ISFS_Read failed %d\n", ret);
+		ISFS_Close(Fd);
+		free(status);
+		return ret;
+	}
+	ISFS_Close(Fd);
+
 	free(status);
 
 	return 0;

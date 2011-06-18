@@ -188,7 +188,6 @@ s32 get_game_list(u64 **TitleIds, u32 *num)
 
 s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 {
-	s32 cfd;
     s32 ret;
 	u32 num;
 	dirent_t *list;
@@ -199,7 +198,6 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	u32 decomp_size = 0;
 	
 	u8 *buffer = allocate_memory(32);	// Needs to be aligned because it's used for nand access
-	//u8 buffer[32] ATTRIBUTE_ALIGN(32);	Doesn't work!!!	
 	
 	if (buffer == NULL)
 	{
@@ -225,31 +223,20 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 			memset(buffer, 0, 32);
             sprintf(path, "/title/%08x/%08x/content/%s", TITLE_UPPER(titleid), TITLE_LOWER(titleid), list[cnt].name);
   
-            cfd = ISFS_Open(path, ISFS_OPEN_READ);
-            if (cfd < 0)
-			{
-	    	    Print("ISFS_Open for %s failed %d\n", path, cfd);
-				continue; 
-			}
-
-            ret = ISFS_Read(cfd, buffer, 32);
+            ret = read_file_from_nand(path, buffer, 32);
 	        if (ret < 0)
 	        {
-	    	    Print("ISFS_Read for %s failed %d\n", path, ret);
-		        ISFS_Close(cfd);
+	    	    // Error is printed in read_file_from_nand already
 				continue;
 	        }
 
-            ISFS_Close(cfd);	
-
 			if (isLZ77compressed(buffer))
 			{
-				Print("Found LZ77 compressed content --> %s\n", list[cnt].name);
-				Print("This is most likely the main DOL, decompressing for checking\n");
+				//Print("Found LZ77 compressed content --> %s\n", list[cnt].name);
+				//Print("This is most likely the main DOL, decompressing for checking\n");
 
-				// TODO still needs some optimisation, still allocating much too much memory
-				
-				ret = decompressLZ77content(buffer, 32, &decompressed, &decomp_size);
+				// We only need 6 bytes...
+				ret = decompressLZ77content(buffer, 32, &decompressed, &decomp_size, 32);
 				if (ret < 0)
 				{
 					Print("Decompressing failed\n");
@@ -445,7 +432,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	Print("Reading TMD...");
 
 	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	ret = read_file(filepath, &tmdBuffer, &tmdSize);
+	ret = read_full_file_from_nand(filepath, &tmdBuffer, &tmdSize);
 	if (ret < 0)
 	{
 		Print("Reading TMD failed\n");
@@ -488,7 +475,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	
     Print("Loading DOL: %s\n", filepath);
 	
-	ret = read_file(filepath, contentBuf, contentSize);
+	ret = read_full_file_from_nand(filepath, contentBuf, contentSize);
 	if (ret < 0)
 	{
 		Print("Reading .dol failed\n");
@@ -497,8 +484,9 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	
 	if (isLZ77compressed(*contentBuf))
 	{
+		Print("Decompressing...");
 		u8 *decompressed;
-		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize);
+		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize, 0);
 		if (ret < 0)
 		{
 			Print("Decompression failed\n");
@@ -507,6 +495,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 		}
 		free(*contentBuf);
 		*contentBuf = decompressed;
+		Print("done\n");
 	}	
 	
 	if (bootcontent_loaded)
