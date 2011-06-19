@@ -1092,10 +1092,6 @@ void show_nand_menu()
 			if (selection == 0)
 			{
 				ret = 0;
-				if (optionselected[0] == 0)
-				{
-					ISFS_Initialize();
-				} else
 				if (optionselected[0] == 1)
 				{
 					ret = Enable_Emu(EMU_SD);
@@ -1147,6 +1143,8 @@ int main(int argc, char* argv[])
 		
 		IOS_ReloadIOS(strtol(argv[1],NULL,10));
 
+		ISFS_Initialize();
+
 		if (strtol(argv[3],NULL,10) == 0)
 		{
 			videoInit(false);
@@ -1173,8 +1171,6 @@ int main(int argc, char* argv[])
 			}
 		}		
 		
-		ISFS_Initialize();
-
 		videooption = strtol(argv[4],NULL,10);
 		languageoption = strtol(argv[5],NULL,10);
 		videopatchoption = strtol(argv[6],NULL,10);
@@ -1197,6 +1193,8 @@ int main(int argc, char* argv[])
 
 	IOS_ReloadIOS(249);
 
+	ISFS_Initialize();
+
 	printheadline();
 
 	Power_Flag = false;
@@ -1215,7 +1213,6 @@ int main(int argc, char* argv[])
 		show_nand_menu();
 	} else
 	{
-		ISFS_Initialize();
 		show_menu();
 	}
 	

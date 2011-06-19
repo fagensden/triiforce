@@ -108,37 +108,6 @@ static char infos[info_number][24] = {
 {"cIOS80rev20 slot 249"}
 };	
 
-s32 GetTMD(u64 TicketID, signed_blob **Output, u32 *Length)
-{
-	signed_blob* TMD = NULL;
-
-	u32 TMD_Length;
-	s32 ret;
-
-	/* Retrieve TMD length */
-	ret = ES_GetStoredTMDSize(TicketID, &TMD_Length);
-	if (ret < 0)
-		return ret;
-
-	/* Allocate memory */
-	TMD = (signed_blob*)memalign(32, (TMD_Length+31)&(~31));
-	if (!TMD)
-		return IPC_ENOMEM;
-
-	/* Retrieve TMD */
-	ret = ES_GetStoredTMD(TicketID, TMD, TMD_Length);
-	if (ret < 0)
-	{
-		free(TMD);
-		return ret;
-	}
-
-	/* Set values */
-	*Output = TMD;
-	*Length = TMD_Length;
-
-	return 0;
-}
 
 char default_ios_info[32];
 char *ios_info = NULL;
@@ -160,9 +129,12 @@ void printheadline()
 		sprintf(default_ios_info, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
 		ios_info = (char *)default_ios_info;
 
-		int ret = GetTMD((((u64)(1) << 32) | (IOS_GetVersion())), &TMD, &TMD_size);
+		char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
+		sprintf(path, "/title/%08x/%08x/content/title.tmd", 0x00000001, IOS_GetVersion());
+	
+		s32 ret = read_full_file_from_nand(path, (void *)(&TMD), &TMD_size);		
 
-		if (ret == 0)
+		if (ret >= 0)
 		{
 			t = (tmd*)SIGNATURE_PAYLOAD(TMD);
 
@@ -184,7 +156,7 @@ void printheadline()
 		first_run = false;
 	}
 
-	Print("TriiForce r90");
+	Print("TriiForce r91");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
