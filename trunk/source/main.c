@@ -70,9 +70,11 @@ void reboot()
 	if (strncmp("STUBHAXX", (char *)0x80001804, 8) == 0)
 	{
 		Print("Exiting to HBC...\n");
+		sleep(3);
 		exit(0);
 	}
 	Print("Rebooting...\n");
+	sleep(3);
 	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
 }
 
@@ -811,8 +813,6 @@ void bootTitle(u64 titleid)
 
 void show_menu()
 {
-	ISFS_Initialize();
-	
 	int i;
 	u32 pressed;
 	u32 pressedGC;
@@ -1092,6 +1092,10 @@ void show_nand_menu()
 			if (selection == 0)
 			{
 				ret = 0;
+				if (optionselected[0] == 0)
+				{
+					ISFS_Initialize();
+				} else
 				if (optionselected[0] == 1)
 				{
 					ret = Enable_Emu(EMU_SD);
@@ -1102,7 +1106,8 @@ void show_nand_menu()
 				}
 				if (ret < 0)
 				{
-					return;
+					waitforbuttonpress(NULL, NULL);
+					continue;
 				}
 				
 				show_menu();
@@ -1210,11 +1215,12 @@ int main(int argc, char* argv[])
 		show_nand_menu();
 	} else
 	{
+		ISFS_Initialize();
 		show_menu();
 	}
 	
-	Print("Press any button\n");
-	waitforbuttonpress(NULL, NULL);
+	//Print("Press any button\n");
+	//waitforbuttonpress(NULL, NULL);
 	
 	reboot();
 	

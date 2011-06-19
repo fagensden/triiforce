@@ -125,8 +125,29 @@ s32 Enable_Emu(int selection)
 	if (ret < 0) 
 	{
 		Print(" ERROR Enable! (ret = %d)\n", ret);
+		Nand_Unmount(ndev);
 		return ret;
 	}
+	
+	ret = ISFS_Initialize();
+	if (ret < 0)
+	{
+		printf("ISFS_Initialize failed ret = %d.\n", ret);
+		Nand_Disable();
+		Nand_Unmount(ndev);
+		return ret;
+	}
+	
+	u32 temp = 0;
+	ret = ISFS_ReadDir("/", NULL, &temp);
+	if (ret < 0)
+	{
+		Print("ISFS_ReadDir('/') failed ret = %d. No FAT partition?", ret);
+		Nand_Disable();
+		Nand_Unmount(ndev);
+		return ret;
+	}
+
 	mounted = selection;
 	return 0;
 }	
