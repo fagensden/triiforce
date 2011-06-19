@@ -819,7 +819,7 @@ void show_menu()
 	int ret;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 3, 3, 2 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 4, 3, 2 };
 
 	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption, bootmethodoption };
 
@@ -828,7 +828,7 @@ void show_menu()
 	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
 	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
-	char *ocarinaoptions[3] = { "No Ocarina", "Ocarina from SD", "Ocarina from USB" };
+	char *ocarinaoptions[4] = { "No Ocarina", "Ocarina from NAND", "Ocarina from SD", "Ocarina from USB" };
 	char *debuggeroptions[3] = { "No debugger", "Debugger enabled", "paused start" };
 	char *bootmethodoptions[2] = { "Normal boot method", "Load apploader" };
 
@@ -891,6 +891,7 @@ void show_menu()
 			set_highlight(false);
 		}
 		Print("\n");
+		fflush(stdout);
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
@@ -1006,6 +1007,7 @@ void show_nand_menu()
 			set_highlight(false);
 		}
 		Print("\n");
+		fflush(stdout);
 		
 		waitforbuttonpress(&pressed, &pressedGC);
 		
@@ -1100,7 +1102,7 @@ int main(int argc, char* argv[])
 			0 No Video patches	1 Smart Video patching	2 More Video patching	3 Full Video patching
 			0 No Ocarina&debugger	1 Hooktype: VBI	2 Hooktype: KPAD	3 Hooktype: Joypad	4 Hooktype: GXDraw	5 Hooktype: GXFlush	6 Hooktype: OSSleepThread	7 Hooktype: AXNextFrame
 			0 No debugger	1 Debugger enabled
-			0 No Ocarina	1 Ocarina from SD	2 Ocarina from USB" };
+			0 No Ocarina	1 Ocarina from NAND 	2 Ocarina from SD	3 Ocarina from USB"
 			0 Normal boot method	1 Load apploader
 		*/
 
