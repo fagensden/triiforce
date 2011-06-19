@@ -870,6 +870,33 @@ void show_menu()
         TitleNames[i] = get_name(TitleIds[i]);		
 		Print(".");
 	}	
+	
+	// Sort the titles by their names
+	bool changed = true;
+	char *temp_char;
+	u64 temp_u64;
+	u32 sort_i;
+	u32 sort_j;
+	for(sort_i=0; sort_i < Titlecount-1 && changed; sort_i++)
+	{
+		changed = false;
+		for(sort_j=0; sort_j < Titlecount-1-sort_i; sort_j++)
+		{
+			if (strcmp(TitleNames[sort_j], TitleNames[sort_j+1]) > 0)
+			{
+				temp_char = TitleNames[sort_j];
+				temp_u64 = TitleIds[sort_j];
+				
+				TitleNames[sort_j] = TitleNames[sort_j+1];
+				TitleIds[sort_j] = TitleIds[sort_j+1];
+				
+				TitleNames[sort_j+1] = temp_char;
+				TitleIds[sort_j+1] = temp_u64;
+				
+				changed = true;
+			}
+		}
+	}		
 
 	while (true)
 	{
@@ -894,6 +921,11 @@ void show_menu()
 		fflush(stdout);
 		
 		waitforbuttonpress(&pressed, &pressedGC);
+		
+		if (pressed == WPAD_BUTTON_B || pressed == WPAD_CLASSIC_BUTTON_B || pressedGC == PAD_BUTTON_B)
+		{
+			selection = 0;
+		}
 		
 		if (pressed == WPAD_BUTTON_UP || pressed == WPAD_CLASSIC_BUTTON_UP || pressedGC == PAD_BUTTON_UP)
 		{
@@ -1158,9 +1190,9 @@ int main(int argc, char* argv[])
 	
 	Set_Config_to_Defaults();
 
-	printheadline();
-
 	IOS_ReloadIOS(249);
+
+	printheadline();
 
 	Power_Flag = false;
 	Reset_Flag = false;
