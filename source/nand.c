@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <ogcsys.h>
+#include <string.h>
 
 #include "nand.h"
 #include "tools.h"
@@ -23,6 +24,8 @@ s32 Nand_Mount(nandDevice *dev)
 	if (fd < 0)
 		return fd;
 
+	// TODO Tell the cIOS which partition to use
+	
 	/* Mount device */
 	ret = IOS_Ioctlv(fd, dev->mountCmd, 0, 0, NULL);
 
@@ -58,6 +61,8 @@ s32 Nand_Enable(nandDevice *dev)
 	fd = IOS_Open("/dev/fs", 0);
 	if (fd < 0)
 		return fd;
+
+	memset(inbuf, 0, sizeof(inbuf));
 
 	/* Set input buffer */
 	if (IOS_GetRevision() >= 20)
@@ -125,15 +130,6 @@ s32 Enable_Emu(int selection)
 	if (ret < 0) 
 	{
 		Print(" ERROR Enable! (ret = %d)\n", ret);
-		Nand_Unmount(ndev);
-		return ret;
-	}
-	
-	ret = ISFS_Initialize();
-	if (ret < 0)
-	{
-		printf("ISFS_Initialize failed ret = %d.\n", ret);
-		Nand_Disable();
 		Nand_Unmount(ndev);
 		return ret;
 	}
