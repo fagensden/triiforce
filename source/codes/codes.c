@@ -64,96 +64,163 @@ void storage_shutdown()
 
 s32 load_codes(char *filename, u32 maxsize, u8 *buffer)
 {
-	char text[4];	
-	
-	if (ocarinaoption == 1)
-	{
-		text[0] = 'S';
-		text[1] = 'D';
-		text[2] = 0;
-		text[3] = 0;
-		storage = __io_wiisd;
-	} else
-	{
-		text[0] = 'U';
-		text[1] = 'S';
-		text[2] = 'B';
-		text[3] = 0;
-		storage = __io_usbstorage;
-	}
+	char text[8];	
+	memset(text, 0 , 8);
 	
 	FILE *fp;
+	s32 Fd;
 	u32 filesize;
 	u32 ret;
-	char buf[128];
+	char path[128];
 	
-	ret = storage.startup();
-	if (ret < 0) 
+	// Read the codes from NAND
+	if (ocarinaoption == 1)
 	{
-		Print("%s Error\n", text);
-		//write_font(185, 346, "%s Error", text);
-		return ret;
-	}
-	ret = fatMountSimple("fat", &storage);
+		text[0] = 'N';
+		text[1] = 'A';
+		text[2] = 'N';
+		text[3] = 'D';
 
-	if (ret < 0) 
+		sprintf(path, "/TriiForce/codes/%s.gct", filename);
+		Fd = ISFS_Open(path, ISFS_OPEN_READ);
+		if (Fd < 0)
+		{
+			sprintf(path, "/codes/%s.gct", filename);
+			Fd = ISFS_Open(path, ISFS_OPEN_READ);
+		}
+		if (Fd < 0)
+		{
+			Print("Failed to open %s\n", path);
+			Print("No %s codes found\n", text);
+			sleep(3);
+			return -1;
+		}
+
+		fstats *status = allocate_memory(sizeof(fstats));
+		if (status == NULL)
+		{
+			Print("Out of memory for status\n");
+			ISFS_Close(Fd);
+			return -1;
+		}
+		
+		ret = ISFS_GetFileStats(Fd, status);
+		if (ret < 0)
+		{
+			Print("ISFS_GetFileStats failed %d\n", ret);
+			ISFS_Close(Fd);
+			free(status);
+			return -1;
+		}
+		filesize = status->file_length;
+		free(status);
+		
+		if (filesize > maxsize)
+		{
+			Print("Too many codes\n");
+			ISFS_Close(Fd);
+			return -1;
+		}
+			
+		// The codes offset is never aligned, but nand reads need to be
+		u8 *buf = allocate_memory(filesize);
+		if (buf == NULL)
+		{
+			Print("Out of memory for buffer\n");
+			ISFS_Close(Fd);
+			return -1;
+		}
+			
+		ret = ISFS_Read(Fd, buf, filesize);
+		if (ret < 0)
+		{
+			Print("ISFS_Read failed %d\n", ret);
+			ISFS_Close(Fd);
+			free(buf);
+			return ret;
+		}
+		ISFS_Close(Fd);
+		
+		memcpy(buffer, buf, filesize);
+		free(buf);		
+	} else
+	// Read the codes from SD/USB
 	{
-		storage_shutdown();
-		Print("FAT Error\n");
-		//write_font(185, 346, "FAT Error");
-		return ret;
-	}
+		switch (ocarinaoption)
+		{
+			case 2:
+				text[0] = 'S';
+				text[1] = 'D';
+				storage = __io_wiisd;
+			break;
+			
+			case 3:
+				text[0] = 'U';
+				text[1] = 'S';
+				text[2] = 'B';
+				storage = __io_usbstorage;
+			break;
+		}
 
-	fflush(stdout);
-	
-	sprintf(buf, "fat:/TriiForce/codes/%s.gct", filename);
-	fp = fopen(buf, "rb");
+		ret = storage.startup();
+		if (ret < 0) 
+		{
+			Print("%s Error\n", text);
+			return ret;
+		}
+		ret = fatMountSimple("fat", &storage);
 
-	if (!fp) 
-	{
-		sprintf(buf, "fat:/codes/%s.gct", filename);
-		fp = fopen(buf, "rb");
-	}
+		if (ret < 0) 
+		{
+			storage_shutdown();
+			Print("FAT Error\n");
+			return ret;
+		}
 
-	if (!fp) 
-	{
-		fatUnmount("fat");
-		storage_shutdown();
-		Print("Failed to open %s\n", buf);
-		Print("No %s codes found\n", text);
-		sleep(3);
-		//write_font(185, 346, "No %s codes found", text);
-		return -1;
-	}
+		sprintf(path, "fat:/TriiForce/codes/%s.gct", filename);
+		fp = fopen(path, "rb");
 
-	fseek(fp, 0, SEEK_END);
-	filesize = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	
-	if (filesize > maxsize)
-	{
-		fatUnmount("fat");
-		storage_shutdown();
-		Print("Too many codes\n");
-		//write_font(185, 346, ""Too many codes");
-		return -1;
-	}	
-	
-	ret = fread(buffer, 1, filesize, fp);
-	if(ret != filesize)
-	{	
+		if (!fp) 
+		{
+			sprintf(path, "fat:/codes/%s.gct", filename);
+			fp = fopen(path, "rb");
+		}
+
+		if (!fp) 
+		{
+			fatUnmount("fat");
+			storage_shutdown();
+			Print("Failed to open %s\n", path);
+			Print("No %s codes found\n", text);
+			sleep(3);
+			return -1;
+		}
+
+		fseek(fp, 0, SEEK_END);
+		filesize = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+
+		if (filesize > maxsize)
+		{
+			fclose(fp);
+			fatUnmount("fat");
+			storage_shutdown();
+			Print("Too many codes\n");
+			return -1;
+		}	
+
+		ret = fread(buffer, 1, filesize, fp);
+
 		fclose(fp);
 		fatUnmount("fat");
 		storage_shutdown();
-		Print("%s Code Error\n", text);
-		//write_font(185, 346, "%s Code Error", text);
-		return -1;
-	}
 
-	fclose(fp);
-	
-	fatUnmount("fat");
-	storage_shutdown();
+		if (ret != filesize)
+		{	
+			Print("%s Code Error\n", text);
+			return -1;
+		}
+	}		
 	
 	return 0;
 }
@@ -296,7 +363,6 @@ void do_codes(u64 titleid)
 		if (ret >= 0)
 		{
 			Print("Codes found. Applying\n");
-			//write_font(185, 346, "Codes found. Applying");
 		}
 		sleep(3);
 	}

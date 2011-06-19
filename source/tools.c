@@ -140,6 +140,10 @@ s32 GetTMD(u64 TicketID, signed_blob **Output, u32 *Length)
 	return 0;
 }
 
+char default_ios_info[32];
+char *ios_info = NULL;
+int console_cols = 0;
+
 void printheadline()
 {
 	signed_blob *TMD = NULL;
@@ -147,35 +151,40 @@ void printheadline()
 	u32 TMD_size = 0;
 	u32 i;
 
-	int ret = GetTMD((((u64)(1) << 32) | (IOS_GetVersion())), &TMD, &TMD_size);
+	int rows;
+	static bool first_run = true;
 	
-	char *info;
-	char default_info[32];
-	sprintf(default_info, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
-	info = (char *)default_info;
+	// Only access the tmd once...
+	if (first_run)
+	{	
+		sprintf(default_ios_info, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
+		ios_info = (char *)default_ios_info;
 
-	if (ret == 0)
-	{
-		t = (tmd*)SIGNATURE_PAYLOAD(TMD);
+		int ret = GetTMD((((u64)(1) << 32) | (IOS_GetVersion())), &TMD, &TMD_size);
 
-		sha1 hash;
-		SHA1((u8 *)TMD, TMD_size, hash);
-
-		free(TMD);
-
-		for (i = 0;i < info_number;i++)
+		if (ret == 0)
 		{
-			if (memcmp((void *)hash, (u32 *)&hashes[i], sizeof(sha1)) == 0)
+			t = (tmd*)SIGNATURE_PAYLOAD(TMD);
+
+			sha1 hash;
+			SHA1((u8 *)TMD, TMD_size, hash);
+
+			free(TMD);
+
+			for (i = 0;i < info_number;i++)
 			{
-				info = (char *)&infos[i];
+				if (memcmp((void *)hash, (u32 *)&hashes[i], sizeof(sha1)) == 0)
+				{
+					ios_info = (char *)&infos[i];
+				}
 			}
 		}
+		
+		CON_GetMetrics(&console_cols, &rows);
+		first_run = false;
 	}
-	
-	int rows, cols;
-	CON_GetMetrics(&cols, &rows);
 
-	Print("TriiForce r87");
+	Print("TriiForce r88");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -190,8 +199,9 @@ void printheadline()
 		break;
 	}
 	
-	Print("\x1B[%d;%dH", 0, cols-strlen(info)-1);	
-	Print("%s\n", info);
+	// Print the IOS info
+	Print("\x1B[%d;%dH", 0, console_cols-strlen(ios_info)-1);	
+	Print("%s\n", ios_info);
 }
 
 void set_highlight(bool highlight)

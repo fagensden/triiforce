@@ -115,11 +115,11 @@ s32 read_full_file_from_nand(char *filepath, u8 **buffer, u32 *filesize)
 		return Fd;
 	}
 
-	fstats *status = NULL;
-	status = allocate_memory(sizeof(fstats));
+	fstats *status = allocate_memory(sizeof(fstats));
 	if (status == NULL)
 	{
 		Print("Out of memory for status\n");
+		ISFS_Close(Fd);
 		return -1;
 	}
 	
@@ -176,11 +176,11 @@ s32 read_file_from_nand(char *filepath, u8 *buffer, u32 filesize)
 		return Fd;
 	}
 
-	fstats *status = NULL;
-	status = allocate_memory(sizeof(fstats));
+	fstats *status = allocate_memory(sizeof(fstats));
 	if (status == NULL)
 	{
 		Print("Out of memory for status\n");
+		ISFS_Close(Fd);
 		return -1;
 	}
 	
