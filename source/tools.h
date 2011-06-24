@@ -17,6 +17,16 @@
 #define TITLE_LOWER(x)		((u32)(x))
 #define TITLE_ID(x,y)		(((u64)(x) << 32) | (y))
 
+typedef struct _iosinfo_t {
+	u32 magicword; //0x1ee7c105
+	u32 magicversion; // 1
+	u32 version; // Example: 5
+	u32 baseios; // Example: 56
+	char name[0x10]; // Example: d2x
+	char versionstring[0x10]; // Example: beta2
+} __attribute__((packed)) iosinfo_t;
+
+
 bool Power_Flag;
 bool Reset_Flag;
 
@@ -28,4 +38,6 @@ void printheadline();
 void set_silent(bool value);
 bool get_silent();
 void Print(const char *text, ...);
+void tell_cIOS_to_return_to_channel();
 
+u64 old_title_id;
