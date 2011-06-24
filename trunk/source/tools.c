@@ -54,7 +54,7 @@ void Print(const char *text, ...)
 	}
 }
 
-#define info_number 23
+#define info_number 35
 
 static u32 hashes[info_number][5] = {
 {0x20e60607, 0x4e02c484, 0x2bbc5758, 0xee2b40fc, 0x35a68b0a},		// cIOSrev13a
@@ -79,84 +79,255 @@ static u32 hashes[info_number][5] = {
 {0x687a2698, 0x3efe5a08, 0xc01f6ae3, 0x3d8a1637, 0xadab6d48},		// cIOS60 rev20
 {0xea6610e4, 0xa6beae66, 0x887be72d, 0x5da3415b, 0xa470523c},		// cIOS61 rev20
 {0x64e1af0e, 0xf7167fd7, 0x0c696306, 0xa2035b2d, 0x6047c736},		// cIOS70 rev20
-{0x0df93ca9, 0x833cf61f, 0xb3b79277, 0xf4c93cd2, 0xcd8eae17}		// cIOS80 rev20
+{0x0df93ca9, 0x833cf61f, 0xb3b79277, 0xf4c93cd2, 0xcd8eae17},		// cIOS80 rev20
+{0x074dfb39, 0x90a5da61, 0x67488616, 0x68ccb747, 0x3a5b59b3}, 		// cIOS36 rev21
+{0x6956a016, 0x59542728, 0x8d2efade, 0xad8ed01e, 0xe7f9a780}, 		// cIOS37 rev21
+{0xdc8b23e6, 0x9d95fefe, 0xac10668a, 0x6891a729, 0x2bdfbca0}, 		// cIOS38 rev21
+{0xaa2cdd40, 0xd628bc2e, 0x96335184, 0x1b51404c, 0x6592b992}, 		// cIOS53 rev21
+{0x4a3d6d15, 0x014f5216, 0x84d65ffe, 0x6daa0114, 0x973231cf}, 		// cIOS55 rev21
+{0xca883eb0, 0x3fe8e45c, 0x97cc140c, 0x2e2d7533, 0x5b369ba5}, 		// cIOS56 rev21
+{0x469831dc, 0x918acc3e, 0x81b58a9a, 0x4493dc2c, 0xaa5e57a0}, 		// cIOS57 rev21
+{0xe5af138b, 0x029201c7, 0x0c1241e7, 0x9d6a5d43, 0x37a1456a}, 		// cIOS58 rev21
+{0x0fdee208, 0xf1d031d3, 0x6fedb797, 0xede8d534, 0xd3b77838}, 		// cIOS60 rev21
+{0xaf588570, 0x13955a32, 0x001296aa, 0x5f30e37f, 0x0be91316}, 		// cIOS61 rev21
+{0x50deaba2, 0x9328755c, 0x7c2deac8, 0x385ecb49, 0x65ea3b2b}, 		// cIOS70 rev21
+{0x811b6a0b, 0xe26b9419, 0x7ffd4930, 0xdccd6ed3, 0x6ea2cdd2}, 		// cIOS80 rev21
+
 };
 
 static char infos[info_number][24] = {
-{"cIOS rev13a slot 249"},
-{"cIOS rev13b slot 249"},
-{"cIOS37rev18 slot 249"},
-{"cIOS38rev18 slot 249"},
-{"cIOS57rev18 slot 249"},
-{"cIOS60rev18 slot 249"},
-{"cIOS70rev18 slot 249"},
-{"cIOS37rev19 slot 249"},
-{"cIOS38rev19 slot 249"},
-{"cIOS57rev19 slot 249"},
-{"cIOS60rev19 slot 249"},
-{"cIOS70rev19 slot 249"},
-{"cIOS36rev20 slot 249"},
-{"cIOS37rev20 slot 249"},
-{"cIOS38rev20 slot 249"},
-{"cIOS53rev20 slot 249"},
-{"cIOS55rev20 slot 249"},
-{"cIOS56rev20 slot 249"},
-{"cIOS57rev20 slot 249"},
-{"cIOS60rev20 slot 249"},
-{"cIOS61rev20 slot 249"},
-{"cIOS70rev20 slot 249"},
-{"cIOS80rev20 slot 249"}
+{"cIOS rev13a"},
+{"cIOS rev13b"},
+{"cIOS37rev18"},
+{"cIOS38rev18"},
+{"cIOS57rev18"},
+{"cIOS60rev18"},
+{"cIOS70rev18"},
+{"cIOS37rev19"},
+{"cIOS38rev19"},
+{"cIOS57rev19"},
+{"cIOS60rev19"},
+{"cIOS70rev19"},
+{"cIOS36rev20"},
+{"cIOS37rev20"},
+{"cIOS38rev20"},
+{"cIOS53rev20"},
+{"cIOS55rev20"},
+{"cIOS56rev20"},
+{"cIOS57rev20"},
+{"cIOS60rev20"},
+{"cIOS61rev20"},
+{"cIOS70rev20"},
+{"cIOS80rev20"},
+{"cIOS36rev21"},
+{"cIOS37rev21"},
+{"cIOS38rev21"},
+{"cIOS53rev21"},
+{"cIOS55rev21"},
+{"cIOS56rev21"},
+{"cIOS57rev21"},
+{"cIOS58rev21"},
+{"cIOS60rev21"},
+{"cIOS61rev21"},
+{"cIOS70rev21"},
+{"cIOS80rev21"},
 };	
 
-
-char default_ios_info[32];
-char *ios_info = NULL;
-int console_cols = 0;
-
-void printheadline()
+s32 brute_tmd(tmd *p_tmd) 
 {
+	u16 fill;
+	for(fill=0; fill<65535; fill++) 
+	{
+		p_tmd->fill3=fill;
+		sha1 hash;
+		SHA1((u8 *)p_tmd, TMD_SIZE(p_tmd), hash);;
+		  
+		if (hash[0]==0) 
+		{
+			return 0;
+		}
+	}
+	return -1;
+}	
+
+void identify_IOS(u8 ios_slot, u8 *ios_base, u32 *ios_revision, char *ios_string)
+{
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(0x20);
+	u8 *buffer = NULL;
+	u32 filesize;
 	signed_blob *TMD = NULL;
 	tmd *t = NULL;
 	u32 TMD_size = 0;
 	u32 i;
+	iosinfo_t *iosinfo = NULL;
 
+	u8 temp_ios_base = 0;
+	u32 temp_ios_revision = 0;
+	
+	// Backup in case the other methods fail
+	if (ios_string != NULL)
+	{
+		if (ios_slot == IOS_GetVersion())
+		{
+			sprintf(ios_string, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
+		} else
+		{
+			sprintf(ios_string, "IOS%u", ios_slot);
+		}
+	}
+
+	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", 0x00000001, ios_slot);
+	s32 ret = read_full_file_from_nand(filepath, (void *)(&TMD), &TMD_size);
+	
+	if (ret >= 0)
+	{
+		// Try to identify the cIOS by the info put in by the installer/ModMii
+		sprintf(filepath, "/title/%08x/%08x/content/%08x.app", 0x00000001, ios_slot, *(u8 *)((u32)TMD+0x1E7));
+		ret = read_full_file_from_nand(filepath, &buffer, &filesize);
+		
+		iosinfo = (iosinfo_t *)(buffer);
+		if (ret >= 0 && iosinfo != NULL && iosinfo->magicword == 0x1ee7c105 && iosinfo->magicversion == 1)
+		{
+			temp_ios_base = iosinfo->baseios;
+			temp_ios_revision = iosinfo->version;
+	
+			if (ios_string != NULL)
+			{
+				sprintf(ios_string, "%s%uv%u%s (%u)", iosinfo->name, iosinfo->baseios, iosinfo->version, iosinfo->versionstring, ios_slot);				
+				// Example: "d2x56v5beta2 (249)"
+			}
+			if (buffer != 0)
+			{
+				free(buffer);
+			}
+		} else
+		{	
+			// Crappy hash method
+			t = (tmd*)SIGNATURE_PAYLOAD(TMD);
+			t->title_id = ((u64)(1) << 32) | 249;	// The hashes were made with the cIOS installed as IOS249
+			brute_tmd(t);		
+
+			sha1 hash;
+			SHA1((u8 *)TMD, TMD_size, hash);;
+
+			for (i = 0;i < info_number;i++)
+			{
+				if (memcmp((void *)hash, (u32 *)&hashes[i], sizeof(sha1)) == 0)
+				{
+					switch (i)
+					{
+						case 0:
+						case 1:
+						case 3:						
+						case 8:						
+						case 14:						
+						case 25:						
+							temp_ios_base = 38;
+						break;
+						
+						case 2:
+						case 7:
+						case 13:
+						case 24:
+							temp_ios_base = 37;
+						break;
+
+						case 4:
+						case 9:
+						case 18:
+						case 29:
+							temp_ios_base = 57;
+						break;
+
+						case 5:
+						case 10:
+						case 19:
+						case 31:
+							temp_ios_base = 60;
+						break;
+						
+						case 6:
+						case 11:
+						case 21:
+						case 33:
+							temp_ios_base = 70;
+						break;
+						
+						case 12:
+						case 23:
+							temp_ios_base = 36;
+						break;
+
+						case 15:
+						case 26:
+							temp_ios_base = 53;
+						break;
+
+						case 16:
+						case 27:
+							temp_ios_base = 55;
+						break;
+
+						case 17:
+						case 28:
+							temp_ios_base = 56;
+						break;
+
+						case 20:
+						case 32:
+							temp_ios_base = 61;
+						break;
+						
+						case 22:
+						case 34:
+							temp_ios_base = 80;
+						break;
+
+						case 30:
+							temp_ios_base = 58;
+						break;
+					}
+					
+					if (ios_string != NULL)
+					{
+						sprintf(ios_string, "%s (%u)", (char *)&infos[i], ios_slot);				
+					}
+				}
+			}
+		}
+		free(TMD);
+	}
+	
+	if (ios_base != NULL)
+	{
+		*ios_base = temp_ios_base;
+	}
+	
+	if (ios_revision != NULL)
+	{
+		*ios_revision = temp_ios_revision;		// Only gets a value if a cIOS is identified
+	}
+}
+
+
+char ios_info[64];
+int console_cols = 0;
+
+void printheadline()
+{
 	int rows;
 	static bool first_run = true;
 	
 	// Only access the tmd once...
 	if (first_run)
 	{	
-		sprintf(default_ios_info, "IOS%u (Rev %u)", IOS_GetVersion(), IOS_GetRevision());
-		ios_info = (char *)default_ios_info;
-
-		char path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
-		sprintf(path, "/title/%08x/%08x/content/title.tmd", 0x00000001, IOS_GetVersion());
-	
-		s32 ret = read_full_file_from_nand(path, (void *)(&TMD), &TMD_size);		
-
-		if (ret >= 0)
-		{
-			t = (tmd*)SIGNATURE_PAYLOAD(TMD);
-
-			sha1 hash;
-			SHA1((u8 *)TMD, TMD_size, hash);
-
-			free(TMD);
-
-			for (i = 0;i < info_number;i++)
-			{
-				if (memcmp((void *)hash, (u32 *)&hashes[i], sizeof(sha1)) == 0)
-				{
-					ios_info = (char *)&infos[i];
-				}
-			}
-		}
+		identify_IOS(249, NULL, NULL, ios_info);
 		
 		CON_GetMetrics(&console_cols, &rows);
 		first_run = false;
 	}
 
-	Print("TriiForce r91");
+	Print("TriiForce r92");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -368,5 +539,55 @@ s32 identify(u64 titleid, u32 *ios)
 	free(tikBuffer);
 	free(certBuffer);
 	return 0;
+}
+
+
+void tell_cIOS_to_return_to_channel()
+{
+    if (TITLE_UPPER(old_title_id) > 1 && TITLE_LOWER(old_title_id) > 2)	// Don't change anything for system menu or no title id
+	{
+		static u64 sm_title_id  ATTRIBUTE_ALIGN(32);
+		sm_title_id = old_title_id; // title id to be launched in place of the system menu
+
+		int ret;
+		
+		//TODO if the return to channel is not auto, then it needs to be checked if the title exists,
+		//but that's a bit complicated when using emulated nand and returning to real nand
+		/*
+		signed_blob *buf = NULL;
+		u32 filesize;
+
+		ret = GetTMD(sm_title_id, &buf, &filesize);
+		if (buf != NULL)
+		{
+			free(buf);
+		}
+
+		if (ret < 0)
+		{
+			return;
+		}*/
+		
+		static ioctlv vector[0x08] ATTRIBUTE_ALIGN(32);
+
+		vector[0].data = &sm_title_id;
+		vector[0].len = 8;
+
+		int es_fd = IOS_Open("/dev/es", 0);
+		if (es_fd < 0)
+		{
+			Print("Couldn't open ES module(2)\n");
+			return;
+		}
+		
+		ret = IOS_Ioctlv(es_fd, 0xA1, 1, 0, vector);
+
+		IOS_Close(es_fd);
+		
+		if (ret < 0)
+		{
+			//Print("ret = %d\n", ret);
+		}
+	}
 }
 

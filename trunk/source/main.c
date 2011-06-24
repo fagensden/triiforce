@@ -270,6 +270,25 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	return -1;
 }
 
+void sneek_video_patch(void *addr, u32 len)
+{
+	u8 *addr_start = addr;
+	u8 *addr_end = addr+len;
+	
+	while(addr_start < addr_end)
+	{
+		if( *(vu32*)(addr_start) == 0x3C608000 )
+		{
+			if( ((*(vu32*)(addr_start+4) & 0xFC1FFFFF ) == 0x800300CC) && ((*(vu32*)(addr_start+8) >> 24) == 0x54 ) )
+			{
+				//dbgprintf("DIP:[patcher] Found VI pattern:%08X\n", (u32)(addr_start) | 0x80000000 );
+				*(vu32*)(addr_start+4) = 0x5400F0BE | ((*(vu32*)(addr_start+4) & 0x3E00000) >> 5	);
+			}
+		}
+		addr_start += 4;
+	}
+}
+
 void patch_dol(bool bootcontent)
 {
 	s32 ret;
@@ -285,11 +304,34 @@ void patch_dol(bool bootcontent)
 				ret = patch_language(dolchunkoffset[i], dolchunksize[i], languageoption);
 			}
 			
-			if (videopatchoption != 0)
+			search_video_modes(dolchunkoffset[i], dolchunksize[i]);
+			switch(videopatchoption)
 			{
-				search_video_modes(dolchunkoffset[i], dolchunksize[i]);
-				patch_video_modes_to(rmode, videopatchoption);
-			}
+				case 1:
+					sneek_video_patch(dolchunkoffset[i], dolchunksize[i]);
+				break;
+				
+				case 2:
+					patch_video_modes_to(rmode, 1);
+				break;
+				
+				case 3:
+					patch_video_modes_to(rmode, 2);
+				break;
+
+				case 4:
+					patch_video_modes_to(rmode, 3);
+				break;
+				
+				case 5:
+					patch_video_modes_to(rmode, 3);
+					sneek_video_patch(dolchunkoffset[i], dolchunksize[i]);
+				break;
+			
+				case 0:
+				default:
+				break;			
+			}	
 		}
 
 		if (hooktypeoption != 0)
@@ -749,6 +791,8 @@ void bootTitle(u64 titleid)
 		sleep(5);
 	}
 
+	tell_cIOS_to_return_to_channel();
+	
 	setVideoMode();
 	green_fix();
 	
@@ -819,13 +863,13 @@ void show_menu()
 	int ret;
 
 	int selection = 0;
-	u32 optioncount[menuitems] = { 1, 1, 8, 4, 11, 8, 4, 3, 2 };
+	u32 optioncount[menuitems] = { 1, 1, 8, 6, 11, 8, 4, 3, 2 };
 
 	u32 optionselected[menuitems] = { 0 , 0, videooption, videopatchoption, languageoption+1, hooktypeoption, ocarinaoption, debuggeroption, bootmethodoption };
 
 	char *start[1] = { "Start" };
 	char *videooptions[8] = { "Default Video Mode", "Force NTSC480i", "Force NTSC480p", "Force PAL480i", "Force PAL480p", "Force PAL576i", "Force MPAL480i", "Force MPAL480p" };
-	char *videopatchoptions[4] = { "No Video patches", "Smart Video patching", "More Video patching", "Full Video patching" };
+	char *videopatchoptions[6] = { "No Video patches", "Sneek's video patch", "Smart Video patching", "More Video patching", "Full Video patching", "Sneek + Full patching" };
 	char *languageoptions[11] = { "Default Language", "Japanese", "English", "German", "French", "Spanish", "Italian", "Dutch", "S. Chinese", "T. Chinese", "Korean" };
 	char *hooktypeoptions[8] = { "No Ocarina&debugger", "Hooktype: VBI", "Hooktype: KPAD", "Hooktype: Joypad", "Hooktype: GXDraw", "Hooktype: GXFlush", "Hooktype: OSSleepThread", "Hooktype: AXNextFrame" };
 	char *ocarinaoptions[4] = { "No Ocarina", "Ocarina from NAND", "Ocarina from SD", "Ocarina from USB" };
@@ -1122,6 +1166,11 @@ void show_nand_menu()
 int main(int argc, char* argv[])
 {
 	int ret;
+
+	if (ES_GetTitleID(&old_title_id) < 0)
+	{
+		old_title_id = (0x00010001ULL << 32) | *(u32 *)0x80000000;
+	}
 
 	if (argc == 11 && argv != NULL)
 	{

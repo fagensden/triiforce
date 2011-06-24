@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <app version="1.0">
 	<name>Triiforce</name>
-	<version>r91</version>
+	<version>r92</version>
         <release_date>200001010000</release_date>
 	<coder>Nicksasa, The Lemon Man and WiiPower</coder>
 	<short_description>Launcher for VC/WiiWare</short_description>
 	<long_description></long_description>
+	<no_ios_reload/>
 </app>
