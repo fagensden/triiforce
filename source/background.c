@@ -2,6 +2,7 @@
 
 #include "libpng/pngu/pngu.h"
 #include "background_png.h"
+#include "background2_png.h"
 
 extern u32 *xfb;
 
@@ -50,5 +51,11 @@ out:
 void DrawBackground(GXRModeObj *vmode)
 {
 	/* Draw background */
-	DrawPng((u8 *)background_png, 0, 0, vmode);
+	if (vmode->xfbHeight == 480)
+	{
+		DrawPng((u8 *)background_png, 0, 0, vmode);
+	} else
+	{
+		DrawPng((u8 *)background2_png, 0, 0, vmode);
+	}
 } 
