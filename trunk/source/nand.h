@@ -2,7 +2,8 @@
 #define _NAND_H_
 
 /* 'NAND Device' structure */
-typedef struct {
+typedef struct
+{
 	/* Device name */
 	char *name;
 
@@ -14,6 +15,12 @@ typedef struct {
 	u32 umountCmd;
 } nandDevice; 
 
+typedef struct
+{
+	u32 mode;
+	s32 partition;
+	char nandpath[ISFS_MAXPATH];
+} fsconfig;
 
 #define EMU_SD 1
 #define EMU_USB 2
@@ -22,7 +29,7 @@ typedef struct {
 s32 Nand_Mount(nandDevice *);
 s32 Nand_Unmount(nandDevice *);
 s32 Nand_Enable(nandDevice *);
-s32 Nand_Disable(void);
+s32 Nand_Disable(nandDevice *dev);
 s32 Enable_Emu(int selection);
 s32 Disable_Emu();
 s32 get_nand_device();
