@@ -327,7 +327,7 @@ void printheadline()
 		first_run = false;
 	}
 
-	Print("TriiForce r93");
+	Print("TriiForce r94");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{

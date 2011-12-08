@@ -757,6 +757,24 @@ void bootTitle(u64 titleid)
 		DCFlushRange((void*)0x80003180, 32);
 	}
 	
+	if (hooktypeoption != 0)
+	{
+		do_codes(titleid);
+	}
+	
+	patch_dol(bootcontentloaded);
+
+	Print("Loading complete, booting...\n");
+
+	appJump = (entrypoint)entryPoint;
+
+	if (!get_silent())
+	{
+		sleep(5);
+	}
+
+	// Put IOS Reload here
+
 	// Remove 002 error
 	*(u16 *)0x80003140 = requested_ios;
 	*(u16 *)0x80003142 = 0xffff;
@@ -774,22 +792,6 @@ void bootTitle(u64 titleid)
 		return;
 	}	
 	//Print("ES_SetUID successful\n");
-	
-	if (hooktypeoption != 0)
-	{
-		do_codes(titleid);
-	}
-	
-	patch_dol(bootcontentloaded);
-
-	Print("Loading complete, booting...\n");
-
-	appJump = (entrypoint)entryPoint;
-
-	if (!get_silent())
-	{
-		sleep(5);
-	}
 
 	tell_cIOS_to_return_to_channel();
 	
