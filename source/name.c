@@ -150,11 +150,14 @@ char *get_name(u64 titleid)
 	u32 low;
 	low = TITLE_LOWER(titleid);
 
+	// TODO
+	Print("Getting the name for: %08x...", titleid);
 	temp = read_name_from_banner_bin(titleid);
 	if (temp == NULL)
 	{
 		temp = read_name_from_banner_app(titleid);
 	}
+	Print("\n");
 	
 	if (temp != NULL)
 	{
