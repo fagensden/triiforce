@@ -185,6 +185,8 @@ void identify_IOS(u8 ios_slot, u8 *ios_base, u32 *ios_revision, char *ios_string
 		sprintf(filepath, "/title/%08x/%08x/content/%08x.app", 0x00000001, ios_slot, *(u8 *)((u32)TMD+0x1E7));
 		ret = read_full_file_from_nand(filepath, &buffer, &filesize);
 		
+		//ISFS_Deinitialize();	It is executed now before an IOS Reload, this fixes a weird freezing in Castlevania Judgment when a wii mote is used
+		
 		iosinfo = (iosinfo_t *)(buffer);
 		if (ret >= 0 && iosinfo != NULL && iosinfo->magicword == 0x1ee7c105 && iosinfo->magicversion == 1)
 		{
@@ -309,6 +311,65 @@ void identify_IOS(u8 ios_slot, u8 *ios_base, u32 *ios_revision, char *ios_string
 	}
 }
 
+u8 find_cIOS_with_base(u8 requested_ios_base)
+{
+	u64 *buf;
+	s32 i, ret;
+	u32 tcnt = 0;
+	
+	u8 current_ios_base;
+	u32 current_ios_revision;
+	
+	u8 temp_ios_base;
+	u32 temp_ios_revision;
+	
+	identify_IOS(CIOS_VERSION, &current_ios_base, &current_ios_revision, NULL);	
+	
+	if (requested_ios_base == current_ios_base || current_ios_base == 0)
+	{
+		//Print("current_ios_base = %u", current_ios_base);
+		return 0; // Using the best cIOS already or couldn't identify the cIOS
+	}
+	
+	//Get stored IOS versions.
+	ret = ES_GetNumTitles(&tcnt);
+	if(ret < 0)
+	{
+		Print("ES_GetNumTitles: Error! (result = %d)", ret);
+		return 0;
+	}
+	buf = memalign(32, sizeof(u64) * tcnt);
+	if (buf == NULL)
+	{
+		Print("Out of memory(find cIOS)");
+		//wait(2);
+		return 0;
+	}
+	ret = ES_GetTitles(buf, tcnt);
+	if(ret < 0)
+	{
+		Print("ES_GetTitles: Error! (result = %d)", ret);
+		return 0;
+	}
+
+	for (i = 0; i < tcnt; i++)
+	{
+		if (*((u32 *)(&(buf[i]))) == 1 && (u32)buf[i] >= 240 && (u32)buf[i] < 254) // Only check IOS240-253
+		{
+			identify_IOS((u8)buf[i], &temp_ios_base, &temp_ios_revision, NULL);	
+			
+			if (temp_ios_revision == current_ios_revision && temp_ios_base == requested_ios_base)
+			{
+				u8 temp_result = (u8)buf[i];
+				free(buf);
+				return temp_result;
+			}
+		}
+	}
+	free(buf);
+	return 0;
+}
+
 
 char ios_info[64];
 int console_cols = 0;
@@ -321,13 +382,13 @@ void printheadline()
 	// Only access the tmd once...
 	if (first_run)
 	{	
-		identify_IOS(249, NULL, NULL, ios_info);
+		identify_IOS(CIOS_VERSION, NULL, NULL, ios_info);
 		
 		CON_GetMetrics(&console_cols, &rows);
 		first_run = false;
 	}
 
-	Print("TriiForce r94");
+	Print("TriiForce r95");
 	s32 nand_device = get_nand_device();
 	switch (nand_device)
 	{
@@ -450,63 +511,65 @@ s32 Identify_GenerateTik(signed_blob **outbuf, u32 *outlen)
 }
 
 
-s32 identify(u64 titleid, u32 *ios)
+s32 read_TMD(u64 titleid, u8 **tmdBuffer, u32 *tmdSize)
 {
 	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
-	u8 *tmdBuffer = NULL;
-	u32 tmdSize;
+
+	Print("Reading TMD...");
+	
+	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
+	s32 ret = read_full_file_from_nand(filepath, tmdBuffer, tmdSize);
+	if (ret < 0)
+	{
+		Print("Reading TMD failed, ret = %d\n");
+		return ret;
+	}
+	
+	Print("done\n");
+	
+	return 0;
+}
+
+
+s32 identify(u64 titleid, u8 *tmdBuffer, u32 tmdSize)
+{
+	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	signed_blob *tikBuffer = NULL;
 	u32 tikSize;
 	u8 *certBuffer = NULL;
 	u32 certSize;
 	
-	int ret;
+	s32 ret;
 
-	Print("Reading TMD...");
-	fflush(stdout);
-	
-	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	ret = read_full_file_from_nand(filepath, &tmdBuffer, &tmdSize);
-	if (ret < 0)
-	{
-		Print("Reading TMD failed\n");
-		return ret;
-	}
-	Print("done\n");
+	//Print("ES_Identify...");
+	//fflush(stdout);
 
-	*ios = (u32)(tmdBuffer[0x18b]);
-
-	Print("Generating fake ticket...");
-	fflush(stdout);
+	//Print("Generating fake ticket...");
+	//fflush(stdout);
 /*
 	sprintf(filepath, "/ticket/%08x/%08x.tik", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 	ret = read_file(filepath, &tikBuffer, &tikSize);
 	if (ret < 0)
 	{
 		Print("Reading ticket failed\n");
-		free(tmdBuffer);
 		return ret;
 	}*/
 	Identify_GenerateTik(&tikBuffer,&tikSize);
-	Print("done\n");
+	//Print("done\n");
 
-	Print("Reading certs...");
-	fflush(stdout);
+	//Print("Reading certs...");
+	//fflush(stdout);
 
 	sprintf(filepath, "/sys/cert.sys");
 	ret = read_full_file_from_nand(filepath, &certBuffer, &certSize);
 	if (ret < 0)
 	{
 		Print("Reading certs failed\n");
-		free(tmdBuffer);
 		free(tikBuffer);
 		return ret;
 	}
-	Print("done\n");
+	//Print("done\n");
 	
-	Print("ES_Identify...");
-	fflush(stdout);
-
 	ret = ES_Identify((signed_blob*)certBuffer, certSize, (signed_blob*)tmdBuffer, tmdSize, tikBuffer, tikSize, NULL);
 	if (ret < 0)
 	{
@@ -528,14 +591,12 @@ s32 identify(u64 titleid, u32 *ios)
 				Print("Error! ES_Identify (ret = %d)\n", ret);
 				break;
 		}
-		free(tmdBuffer);
 		free(tikBuffer);
 		free(certBuffer);
 		return ret;
 	}
-	Print("done\n");
+	//Print("done\n");
 	
-	free(tmdBuffer);
 	free(tikBuffer);
 	free(certBuffer);
 	return 0;

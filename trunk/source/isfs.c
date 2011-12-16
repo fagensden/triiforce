@@ -25,11 +25,13 @@ s32 __FileCmp(const void *a, const void *b)
 s32 getdircount(char *path, u32 *cnt)
 {
 	if (cnt == NULL) return -2;
+	
 	u32 temp = 0;
-	s32 res = ISFS_ReadDir(path, NULL, &temp);
-	if (res != ISFS_OK)
+	s32 ret = ISFS_ReadDir(path, NULL, &temp);
+	if (ret != ISFS_OK)
 	{
-		Print("Error: Could not get dir entry count(ret: %d) for:\n'%s'\n", res, path);
+		Print("Error: ISFS_ReadDir('%s') ret = %d\n", path, ret);
+		waitforbuttonpress(NULL, NULL);
 		return -1;
 	}
 	*cnt = temp;
@@ -41,15 +43,15 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 {
 	if (ent == NULL) return -2;
 	
-	s32 res;
+	s32 ret;
 	u32 num = 0;
 
 	int i, j, k;
 	
-	res = getdircount(path, &num);
-	if (res < 0)
+	ret = getdircount(path, &num);
+	if (ret < 0)
 	{
-		//Print("Error: could not get dir entry count! (result: %d)\n", res);
+		//Print("Error: could not get dir entry count! (result: %d)\n", ret);
 		return -1;
 	}
 	*cnt = num;
@@ -65,10 +67,10 @@ s32 getdir(char *path, dirent_t **ent, u32 *cnt)
 		return -2;
 	}
 
-	res = ISFS_ReadDir(path, nbuf, &num);
-	if (res != ISFS_OK)
+	ret = ISFS_ReadDir(path, nbuf, &num);
+	if (ret != ISFS_OK)
 	{
-		Print("Error: could not get name list! (result: %d)\n", res);
+		Print("Error: could not get name list! (result: %d)\n", ret);
 		free(nbuf);
 		return -3;
 	}

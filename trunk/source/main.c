@@ -254,7 +254,7 @@ s32 check_dol(u64 titleid, char *out, u16 bootcontent)
 	        ret = memcmp(buffer, check, 6);
             if(ret == 0)
             {
-				Print("Found DOL --> %s\n", list[cnt].name);
+				//Print("Found DOL --> %s\n", list[cnt].name);
 				sprintf(out, "%s", path);
 				free(list);
 				free(buffer);
@@ -365,7 +365,7 @@ u32 load_dol(u8 *buffer)
 	DCFlushRange((void *)dolfile->bss_start, dolfile->bss_size);
 	ICInvalidateRange((void *)dolfile->bss_start, dolfile->bss_size);
 	
-    Print("BSS cleared\n");
+    //Print("BSS cleared\n");
 	
 	u32 doloffset;
 	u32 memoffset;
@@ -451,13 +451,13 @@ u32 load_dol(u8 *buffer)
 		//Print("done\n");
 		//fflush(stdout);			
 	} 
-	Print("All .dol sections moved\n");
-	fflush(stdout);			
+	//Print("All .dol sections moved\n");
+	//fflush(stdout);			
 	return dolfile->entry_point;
 }
 
 
-s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool skip_bootcontent)
+s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool skip_bootcontent, u8 *tmdBuffer)
 {
 	char filepath[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	int ret;
@@ -465,30 +465,14 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	u16 bootcontent;
 	bool bootcontent_loaded;
 	
-	u8 *tmdBuffer = NULL;
-	u32 tmdSize;
 	tmd_content *p_cr = NULL;
 
 	u32 pressed;
 	u32 pressedGC;
 
-	// Opening the tmd only to get to know which content is the apploader
-	Print("Reading TMD...");
-
-	sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
-	ret = read_full_file_from_nand(filepath, &tmdBuffer, &tmdSize);
-	if (ret < 0)
-	{
-		Print("Reading TMD failed\n");
-		return ret;
-	}
-	Print("done\n");
-	
 	bootindex = ((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer))->boot_index;
 	p_cr = TMD_CONTENTS(((tmd *)SIGNATURE_PAYLOAD((signed_blob *)tmdBuffer)));
 	bootcontent = p_cr[bootindex].cid;
-
-	free(tmdBuffer);
 
 	// Write bootcontent to filepath and overwrite it in case another .dol is found
 	sprintf(filepath, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(titleid), TITLE_LOWER(titleid), bootcontent);
@@ -496,8 +480,8 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	if (skip_bootcontent)
 	{
 		bootcontent_loaded = false;
-		Print("Searching for main DOL...\n");
-			
+		//Print("Searching for main DOL...\n");
+	
 		// Search the folder for .dols and ignore the apploader
 		ret = check_dol(titleid, filepath, bootcontent);
 		if (ret < 0)
@@ -517,7 +501,13 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 		bootcontent_loaded = true;
 	}
 	
-    Print("Loading DOL: %s\n", filepath);
+    if (bootcontent_loaded)
+	{
+		Print("Loading Apploader: %s\n", filepath);
+	} else
+	{
+		Print("Loading DOL: %s\n", filepath);
+	}
 	
 	ret = read_full_file_from_nand(filepath, contentBuf, contentSize);
 	if (ret < 0)
@@ -528,7 +518,7 @@ s32 search_and_read_dol(u64 titleid, u8 **contentBuf, u32 *contentSize, bool ski
 	
 	if (isLZ77compressed(*contentBuf))
 	{
-		Print("Decompressing...");
+		Print("Decompressing ...");
 		u8 *decompressed;
 		ret = decompressLZ77content(*contentBuf, *contentSize, &decompressed, contentSize, 0);
 		if (ret < 0)
@@ -702,10 +692,26 @@ void bootTitle(u64 titleid)
 	u32 dolsize;
 	bool bootcontentloaded;
 	
-	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, (bootmethodoption == 0));
+	u8 *tmdBuffer = NULL;
+	u32 tmdSize;
+	
+	ret = read_TMD(titleid, &tmdBuffer, &tmdSize);
+	if (ret < 0 || tmdSize == 0)
+	{
+		if (tmdBuffer)
+		{
+			free(tmdBuffer);
+		}
+		return;
+	}
+	
+	requested_ios = (u32)(tmdBuffer[0x18b]);
+	
+	ret = search_and_read_dol(titleid, &dolbuffer, &dolsize, (bootmethodoption == 0), tmdBuffer);
 	if (ret < 0)
 	{
 		Print(".dol loading failed\n");
+		free(tmdBuffer);
 		return;
 	}
 	bootcontentloaded = (ret == 1);
@@ -716,18 +722,8 @@ void bootTitle(u64 titleid)
 	
 	free(dolbuffer);
 
-	Print(".dol loaded\n");
+	//Print(".dol loaded\n");
 
-	ret = identify(titleid, &requested_ios);
-	if (ret < 0)
-	{
-		Print("Identify failed\n");
-		return;
-	}
-	
-	// Might cause trouble?
-	//ISFS_Deinitialize();
-	
 	// Set the clock
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
@@ -764,17 +760,65 @@ void bootTitle(u64 titleid)
 	
 	patch_dol(bootcontentloaded);
 
-	Print("Loading complete, booting...\n");
-
 	appJump = (entrypoint)entryPoint;
 
-	if (!get_silent())
+	// Auto cIOS
+	u8 ios_to_load = find_cIOS_with_base(requested_ios);
+	s32 nand_device = get_nand_device();
+
+	if (ios_to_load == 0)
 	{
-		sleep(5);
+		Print("The requested IOS is: IOS%u\n", requested_ios);
+	} else
+	{
+		Print("Loading IOS%u(base IOS%u).", ios_to_load, requested_ios);
+
+		WPAD_Shutdown();
+		Disable_Emu();
+		ISFS_Deinitialize();
+		
+		Print(".");
+
+		IOS_ReloadIOS(ios_to_load);
+		ISFS_Initialize();	
+		
+		Print(".");
+	
+		// Reinit controls in case of an error later
+		PAD_Init();
+		WPAD_Init();
+		WPAD_SetDataFormat(WPAD_CHAN_0, WPAD_FMT_BTNS_ACC_IR);
+
+		Print(".");
+		
+		ret = Enable_Emu(nand_device);
+		if (ret < 0)
+		{
+			return;
+		}
+
+		Print(".\n");
 	}
 
-	// Put IOS Reload here
+	// ES_Identify as the title
+	ret = identify(titleid, tmdBuffer, tmdSize);
+	if (ret < 0)
+	{
+		Print("Identify failed\n");
+		free(tmdBuffer);
+		return;
+	}
 
+	// ES_SetUID, maybe not required at all?	
+	ret = ES_SetUID(titleid);
+	if (ret < 0)
+	{
+		Print("ES_SetUID failed %d", ret);
+		free(tmdBuffer);
+		return;
+	}	
+	//Print("ES_SetUID successful\n");
+	
 	// Remove 002 error
 	*(u16 *)0x80003140 = requested_ios;
 	*(u16 *)0x80003142 = 0xffff;
@@ -784,22 +828,22 @@ void bootTitle(u64 titleid)
 	DCFlushRange((void*)0x80003140, 32);
 	DCFlushRange((void*)0x80003180, 32);
 	
-	// Maybe not required at all?	
-	ret = ES_SetUID(titleid);
-	if (ret < 0)
-	{
-		Print("ES_SetUID failed %d", ret);
-		return;
-	}	
-	//Print("ES_SetUID successful\n");
-
 	tell_cIOS_to_return_to_channel();
+
+	Print("Preparations complete, booting...\n");
+
+	if (!get_silent())
+	{
+		sleep(5);
+	}
+
+	// TODO
+	waitforbuttonpress(NULL, NULL);
 	
 	setVideoMode();
 	green_fix();
 	
 	WPAD_Shutdown();
-
 	IRQ_Disable();
 	__IOS_ShutdownSubsystems();
 	__exception_closeall();
@@ -915,8 +959,12 @@ void show_menu()
 	{
         TitleNames[i] = get_name(TitleIds[i]);		
 		Print(".");
-	}	
+	}
+
 	
+	// TODO
+	waitforbuttonpress(NULL, NULL);
+
 	// Sort the titles by their names
 	bool changed = true;
 	char *temp_char;
@@ -1242,7 +1290,7 @@ int main(int argc, char* argv[])
 	
 	Set_Config_to_Defaults();
 
-	IOS_ReloadIOS(249);
+	IOS_ReloadIOS(CIOS_VERSION);
 
 	ISFS_Initialize();
 
@@ -1259,13 +1307,13 @@ int main(int argc, char* argv[])
 
 	Set_Config_to_Defaults();
 	
-	if (IOS_GetVersion() == 249 && IOS_GetRevision() >= 14)
-	{
+	//if (IOS_GetVersion() == CIOS_VERSION && IOS_GetRevision() >= 14)
+	//{
 		show_nand_menu();
-	} else
-	{
-		show_menu();
-	}
+	//} else
+	//{
+	//	show_menu();
+	//}
 	
 	//Print("Press any button\n");
 	//waitforbuttonpress(NULL, NULL);

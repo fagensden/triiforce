@@ -17,6 +17,8 @@
 #define TITLE_LOWER(x)		((u32)(x))
 #define TITLE_ID(x,y)		(((u64)(x) << 32) | (y))
 
+#define CIOS_VERSION 249
+
 typedef struct _iosinfo_t {
 	u32 magicword; //0x1ee7c105
 	u32 magicversion; // 1
@@ -31,7 +33,10 @@ bool Power_Flag;
 bool Reset_Flag;
 
 void *allocate_memory(u32 size);
-s32 identify(u64 titleid, u32 *ios);
+
+s32 read_TMD(u64 titleid, u8 **tmdBuffer, u32 *tmdSize);
+s32 identify(u64 titleid, u8 *tmdBuffer, u32 tmdSize);
+
 void set_highlight(bool highlight);
 void waitforbuttonpress(u32 *out, u32 *outGC);
 void printheadline();
@@ -39,5 +44,6 @@ void set_silent(bool value);
 bool get_silent();
 void Print(const char *text, ...);
 void tell_cIOS_to_return_to_channel();
+u8 find_cIOS_with_base(u8 requested_ios_base);
 
 u64 old_title_id;
